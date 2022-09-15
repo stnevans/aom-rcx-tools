@@ -6,7 +6,7 @@ import ntpath
 import os
 import sys
 
-import commands
+import commands as Commands
 
 LOAD_FLAGS_TIME = 0x1
 LOAD_FLAGS_CAMERA1 = 0x2
@@ -15,6 +15,7 @@ LOAD_FLAGS_CAMERA3 = 0x8
 LOAD_FLAGS_CAMERA46 = 0x10
 LOAD_FLAGS_COMMANDS = 0x20 #might actually be COMMANDS_FEW or smth like that
 LOAD_FLAGS_SELECTED_UNITS = 0x80
+NATURE_CIV = 22
 
 def path_leaf(path):
     head, tail = ntpath.split(path)
@@ -120,8 +121,10 @@ class RcxReader:
         test = self.read_one()
         if test != 0:
             cmd_type = self.read_four()
-            cmd = commands.Command.get_command(cmd_type)
+            cmd = Commands.Command.get_command(cmd_type)
             cmd.read(self)
+            return cmd
+        return None
 
     def get_sync(self, loadFlags):
         field_4c = 1
@@ -138,7 +141,7 @@ class RcxReader:
             decider = self.read_one()
             if decider != 0:
                 self.read_sync_update()
-            # print("Decider "+ str(decider))
+
     def read_sync_update(self):
         if self.is_ee:
             numSyncDatas = self.read_four()
@@ -191,11 +194,9 @@ class Player:
     def setName(self, name):
         self.name = name
 
-
     def resign(self, resignTime):
         self.resignTime = resignTime
         self.isResigned = True
-
 
     def __str__(self):
         return self.name + "(" + self.gods[self.civ] + ")"
@@ -204,21 +205,31 @@ class Player:
         return self.__str__()
 
 class Team:
-    def __init__(self, players):
-        self.players = players
+    def __init__(self, name, id):
+        self.players = []
+        self.name = name.decode("utf-8")
+        self.id = id
+
+    def addPlayer(self, player):
+        self.players.append(player)
 
     def is_lost(self):
+        
         for player in self.players:
             if not player.isResigned:
                 return False
         return True
 
+    def __str__(self):
+        return self.name  + " - " + str(self.players)
+
+
 class Update:
-    def __init__(self, commands, selectedUnits, time):
+    def __init__(self, num, commands, selectedUnits, time):
         self.commands = commands
         self.selectedUnits = selectedUnits
         self.time = time
-        self.num = -1
+        self.num = num
 
     def set_num(self, num):
         self.num = num
@@ -226,12 +237,16 @@ class Update:
 class Rec:
     def __init__(self, filepath):
         self.players = []
+        self.updates = []
+        self.teams = []
+
         self.filepath = filepath
+
         # Create our RcxReader
         self.reader = RcxReader(filepath)
-        self.updates = []
         
-    def parse_update(self):
+        
+    def parse_update(self, updateNum):
         selectedUnits = []
         commands = []
 
@@ -247,6 +262,7 @@ class Rec:
 
         # Read the commands
         numCommands = self.reader.read_num_commands(loadFlags)
+
         commands = [None] * numCommands
         for i in range(numCommands):
             commands[i] = self.reader.get_command(loadFlags)
@@ -275,7 +291,7 @@ class Rec:
         if self.reader.field_8 < 1:
             # self.validate_read()
             pass
-        return Update(commands, selectedUnits, upTime)
+        return Update(updateNum, commands, selectedUnits, upTime)
     
     def parse_header(self):
         # read game settings (lastGameSettings.xml)
@@ -312,12 +328,12 @@ class Rec:
         self.reader.skip(9)
         self.reader.skip(4)
 
-        # Read the difficulty, player number
+        # Read the difficulty, team nums
         self.difficulty = self.reader.read_four()
-        plNum2 = self.reader.read_four()
+        maybeTeamNums = self.reader.read_four()
         
         # For every player read some more info about them
-        for i in range(plNum2):
+        for i in range(maybeTeamNums):
             read_player = self.reader.read_one()
             if read_player == 0:
                 continue
@@ -326,12 +342,23 @@ class Rec:
             teamId = self.reader.read_four()
             sz = self.reader.read_four()
             teamDesc = self.reader.read_n(sz)
-            print(teamDesc)
+            print(teamDesc, teamId)
+
+            if teamId-1 < len(self.teams):
+                self.teams[teamId-1].set_name(teamDesc)
+            else:
+                self.teams.append(Team(teamDesc, teamId))
 
             newNum = self.reader.read_four() #might be color stuff, can't remember
             for i in range(newNum):
                 data = self.reader.read_four()
+        
+        # Add players to their team
 
+        for player in self.players:
+            if player.civ != NATURE_CIV:
+                self.teams[player.team-1].addPlayer(player)
+            
 
         # We now read more info about the players.
         # Not exactly sure what all this is
@@ -378,17 +405,22 @@ class Rec:
             colors = self.reader.read_four()
     
 
-    def parse(self):
+    def parse(self, print_progress=False):
         self.parse_header()
         
         # Now we parse all the updates
         for updateNum in range(1,0x10000):
             pre = self.reader.seek
-            update = self.parse_update()
-            update.num = updateNum
+            try:
+                update = self.parse_update(updateNum)
+            except Exception as e:
+                print(hex(pre))
+                print(updateNum)
+                raise e
             self.updates.append(update)
             if updateNum % 5000 == 0:
-                print("Seek after update #" + str(updateNum) + " = " + hex(self.reader.seek) + " / " + hex(len(self.reader.decomp)) + "     " + str(self.reader.seek/len(self.reader.decomp)) + "%      "+ str(self.reader.seek-pre))
+                if print_progress:
+                    print("Parsing progress: {:.2f}%".format(self.reader.seek * 100 / len(self.reader.decomp)))
             if len(self.reader.decomp) == self.reader.seek:
                 break
         print("Finished reading everything!")
@@ -403,20 +435,11 @@ class Rec:
         # now back to compressed at same seek
 
     def display_by_teams(self):
-        teams = [[] for i in range(len(self.players))]
-        for player in self.players:
-            if player.team <= 0: #handles obs i think
-                continue
-            else:
-                team = teams[player.team]
-                team.append(player)
-        
-        for team in teams:
-            if len(team) > 0:
-                print("\tTeam " + str(team[0].team)+": ",end="")
-                for player in team:
-                    print(str(player) + " ",end="")
-                print()
+        for team in self.teams:
+            print(team)
+        for team in self.teams:
+            if not team.is_lost():
+                print(team.name + " has won")
 
     def get_display_string(self):
         teams = [[] for i in range(len(self.players))]
@@ -443,6 +466,15 @@ class Rec:
             time += update.time
         time /= 1000
         return time
+
+    def analyze_updates(self):
+        time = 0
+        for update in self.updates:
+            commands = update.commands
+            for command in commands:
+                if type(command) == Commands.ResignCommand:
+                    self.players[command.resigningPlayerId].resign(time)
+            time += update.time
     
 def main():
     # base_path = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Age of Mythology\\savegame\\"
@@ -460,9 +492,11 @@ def main():
     #             print(e)            
     # fd.close()
 
-    rec = Rec("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/"+"Replay v2.8 @2022.09.10 005123.rcx")
-    rec.parse()
+    rec = Rec("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/"+"t_Replay v2.8 @2022.08.10 220004.rcx")
+    rec.parse(print_progress=True)
+    rec.analyze_updates()
     rec.display_by_teams()
+    # print(rec.winning)
     print(rec.game_time_seconds())
 
 if __name__ == '__main__':

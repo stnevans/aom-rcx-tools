@@ -53,7 +53,7 @@ class Command:
                0x2c: None, 0x2d: AdjustArmyCommand, 0x2e: RepairCommand, 0x2f: EmpowerCommand,
                0x30: None, 0x31: AiChatCommand, 0x32: PlayerDataCommand, 
                0x33: FormationCommand, 0x34: None, 0x35: UnbuildCommand, 0x36: AutoqueueCommand,
-               0x37: None, 0x38: PlayerDisconnectCommand, 0x39: PlayerDisconnectCommand}
+               0x37: PlayerAutoGatherModeCommand, 0x38: PlayerSpeedUpConstructionCommand, 0x39: PlayerDisconnectCommand}
         if commandNum not in map:
             print("Cannot find command in map. Probably wrong num")
             return None
@@ -61,6 +61,19 @@ class Command:
             print("Command " + hex(commandNum) + " not implemented")
             return None
         return map[commandNum]()
+class PlayerSpeedUpConstructionCommand(Command):
+    def __init__(self):
+        super().__init__()
+    
+    def read(self, reader):
+        super().read(reader)
+class PlayerAutoGatherModeCommand(Command):
+    def __init__(self):
+        super().__init__()
+    
+    def read(self, reader):
+        super().read(reader)
+        self.d1 = reader.read_four()
 
 class EmpowerCommand(Command):
     def __init__(self):
@@ -201,6 +214,7 @@ class PlayerDisconnectCommand(Command):
         super().__init__()
 
     def read(self, reader):
+        print("BEFORE = " + hex(reader.seek))
         self.playerId = reader.read_four()
 
         super().read(reader)
