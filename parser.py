@@ -180,21 +180,38 @@ class RcxReader:
 
 class Player:
     gods = ["Zeus", "Poseidon", "Hades", "Isis", "Ra", "Set", "Odin", "Thor", "Loki", "Kronos", "Oranos", "Gaia", "Fu Xi", "Nu Wa", "Shennong", "4", "5", "6", "7", "8", "9", "10", "Nature", "12", "13", "14", "15", "16"]
-    def __init__(self, civ, team, idx):
+    def __init__(self, civ, team, idx, isObserver=False):
         self.civ = civ
         self.team = team
         self.idx = idx
         self.name = ""
+        self.isResigned = False
+        self.isObserver = isObserver
 
     def setName(self, name):
         self.name = name
+
+
+    def resign(self, resignTime):
+        self.resignTime = resignTime
+        self.isResigned = True
+
 
     def __str__(self):
         return self.name + "(" + self.gods[self.civ] + ")"
 
     def __repr__(self):
         return self.__str__()
-allplayers = []
+
+class Team:
+    def __init__(self, players):
+        self.players = players
+
+    def is_lost(self):
+        for player in self.players:
+            if not player.isResigned:
+                return False
+        return True
 
 class Update:
     def __init__(self, commands, selectedUnits, time):
@@ -291,9 +308,6 @@ class Rec:
             if name is not None:
                 player.setName(player_ele.find("Name").text )
         
-        global allplayers
-        allplayers = self.players
-
         # Skip 1 + 4 + 4 + 4 bytes found after the civ,team info
         self.reader.skip(9)
         self.reader.skip(4)
@@ -423,6 +437,13 @@ class Rec:
 
         return ret
 
+    def game_time_seconds(self):
+        time = 0
+        for update in self.updates:
+            time += update.time
+        time /= 1000
+        return time
+    
 def main():
     # base_path = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Age of Mythology\\savegame\\"
     # # base_path = "/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/"
@@ -439,15 +460,10 @@ def main():
     #             print(e)            
     # fd.close()
 
-#    Rec("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/"+"Replay v2.8 @2020.07.16 234459.rcx").display_by_teams()
-    # Rec("/mnt/c/Users/stnevans/Downloads/nube1978_cheat.rcx").display_by_teams()
-    # Rec("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/"+"t_Replay v2.8 @2020.11.15 183223.rcx").display_by_teams()
-    # Rec("C:\Program Files (x86)\Steam\steamapps\common\Age of Mythology\savegame\")
     rec = Rec("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/"+"Replay v2.8 @2022.09.10 005123.rcx")
     rec.parse()
     rec.display_by_teams()
-    print(rec.updates)
-    # Rec("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/"+"son_of.rcx").display_by_teams()
+    print(rec.game_time_seconds())
 
 if __name__ == '__main__':
     main()

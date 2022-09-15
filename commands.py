@@ -1,5 +1,5 @@
 class Command:
-    def __init__():
+    def __init__(self):
         pass
 
     def read(self,reader):
@@ -64,7 +64,7 @@ class Command:
 
 class EmpowerCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
     
     def read(self, reader):
         super().read(reader)
@@ -72,7 +72,7 @@ class EmpowerCommand(Command):
 
 class EjectCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
     
     def read(self, reader):
         super().read(reader)
@@ -80,17 +80,16 @@ class EjectCommand(Command):
     
 class UnbuildCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
     
     def read(self, reader):
         super().read(reader)
         self.d1 = reader.read_posVector()
         self.d2 = reader.read_posVector()
 
-class PauseCommand(Command): #untested
+class PauseCommand(Command): 
     def __init__(self):
-        print("Pause cmd test")
-        sys.exit(0)
+        raise NotImplementedError("Check needed")
 
     def read(self, reader):
         super().read(reader)
@@ -98,9 +97,8 @@ class PauseCommand(Command): #untested
 
 class AddResourceCommand(Command): 
     def __init__(self):
-        print("ADD RES test")
-        sys.exit(0)
-
+        raise NotImplementedError("Check needed")
+        
     def read(self, reader):
         super().read(reader)
         self.d1 = reader.read_four()
@@ -108,7 +106,7 @@ class AddResourceCommand(Command):
 
 class CreateUnitCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
@@ -121,7 +119,7 @@ class CreateUnitCommand(Command):
 
 class FormationCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
@@ -129,24 +127,22 @@ class FormationCommand(Command):
 
 class RepairCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
         self.d1 = reader.read_four()
-        print("RE")
-        sys.exit(0)
 
 class TownBellCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
 
 class PlayerDataCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
@@ -154,7 +150,7 @@ class PlayerDataCommand(Command):
 
 class MarketCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
@@ -164,7 +160,7 @@ class MarketCommand(Command):
     
 class TributeCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
@@ -173,10 +169,9 @@ class TributeCommand(Command):
         self.amt = reader.read_four()
         self.field_b8 = reader.read_four()
 
-
 class TransformCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
@@ -185,14 +180,15 @@ class TransformCommand(Command):
 
 class EnterCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
         self.d1 = reader.read_four()
+
 class AdjustArmyCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
@@ -202,7 +198,7 @@ class AdjustArmyCommand(Command):
 
 class PlayerDisconnectCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         self.playerId = reader.read_four()
@@ -211,7 +207,7 @@ class PlayerDisconnectCommand(Command):
 
 class SpecialPowerCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
@@ -222,7 +218,7 @@ class SpecialPowerCommand(Command):
 
 class ResearchCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
@@ -231,11 +227,10 @@ class ResearchCommand(Command):
 
 class AiChatCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
-        # self.d1 = reader.read_one()
         reader.read_four()
         reader.read_four()
         reader.read_four()
@@ -248,7 +243,7 @@ class AiChatCommand(Command):
 
 class DeleteUnitCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
@@ -256,21 +251,17 @@ class DeleteUnitCommand(Command):
 
 class ResignCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
-        self.playerId = reader.read_four()
+        self.resigningPlayerId = reader.read_four()
         self.d2 = reader.read_four() #maybe left in team
         self.d3 = reader.read_four() #maybe playerCount
-
-    def __str__(self):
-        global allplayers
-        return super().__str__() + " " + str(allplayers[self.playerId])
         
 class BuildCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
@@ -284,7 +275,7 @@ class BuildCommand(Command):
 
 class WorkCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
@@ -298,11 +289,11 @@ class WorkCommand(Command):
     
 class AutoqueueCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
 class ExploreCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
@@ -310,7 +301,7 @@ class ExploreCommand(Command):
 
 class SetGatherPointCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
@@ -324,7 +315,7 @@ class SetGatherPointCommand(Command):
         
 class StanceCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
@@ -332,12 +323,11 @@ class StanceCommand(Command):
 
 class StopCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
-    pass
 class TrainCommand(Command):
     def __init__(self):
-        pass
+        super().__init__()
 
     def read(self, reader):
         super().read(reader)
