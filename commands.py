@@ -1,4 +1,7 @@
 class Command:
+    #mRecipients seems to be unitid of units that are processed by command
+
+
     def __init__(self):
         pass
 
@@ -236,8 +239,9 @@ class ResearchCommand(Command):
 
     def read(self, reader):
         super().read(reader)
-        self.field_ac = reader.read_four()
+        self.techId = reader.read_four()
         self.field_b0 = reader.read_four()
+
 
 class AiChatCommand(Command):
     def __init__(self):

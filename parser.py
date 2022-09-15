@@ -6,6 +6,7 @@ import ntpath
 import os
 import sys
 
+
 import commands as Commands
 
 LOAD_FLAGS_TIME = 0x1
@@ -16,6 +17,25 @@ LOAD_FLAGS_CAMERA46 = 0x10
 LOAD_FLAGS_COMMANDS = 0x20 #might actually be COMMANDS_FEW or smth like that
 LOAD_FLAGS_SELECTED_UNITS = 0x80
 NATURE_CIV = 22
+
+
+class TechTreeDatabase:
+    def __init__(self):
+        self.techs = []
+        # TECH_TREE_XML_PATH = "/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/data-dev/techtreex.xml"
+        TECH_TREE_XML_PATH = "/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/data/techtree2.8.xml"
+        with open(TECH_TREE_XML_PATH, 'r') as f:
+            for line in f:
+                # test = "	<tech name="
+                # print(line.lower())
+                if "tech name=".lower() in line.lower():
+                    startFind = "name="
+                    endFind = "type="
+                    self.techs.append(line[line.find(startFind)+len(startFind)+1:line.find(endFind)-2])
+
+    def get_tech(self, id):
+        # print(self.techs, id)
+        return self.techs[id]
 
 def path_leaf(path):
     head, tail = ntpath.split(path)
@@ -214,7 +234,6 @@ class Team:
         self.players.append(player)
 
     def is_lost(self):
-        
         for player in self.players:
             if not player.isResigned:
                 return False
@@ -409,7 +428,7 @@ class Rec:
         self.parse_header()
         
         # Now we parse all the updates
-        for updateNum in range(1,0x10000):
+        for updateNum in range(1,0x1000000):
             pre = self.reader.seek
             try:
                 update = self.parse_update(updateNum)
@@ -459,23 +478,40 @@ class Rec:
                 ret += "\n"
 
         return ret
-
-    def game_time_seconds(self):
+    
+    def game_time_milliseconds(self):
         time = 0
         for update in self.updates:
             time += update.time
-        time /= 1000
         return time
 
     def analyze_updates(self):
+        database = TechTreeDatabase()
         time = 0
         for update in self.updates:
             commands = update.commands
+            # if time/1000 > 599 and time/1000 < 602:
+            #     print(commands)
+            # print(time/1000, self.game_time_formatted(ms=time))
             for command in commands:
                 if type(command) == Commands.ResignCommand:
                     self.players[command.resigningPlayerId].resign(time)
+                    print(str(self.players[command.resigningPlayerId]) + " has resigned")
+                elif type(command) == Commands.ResearchCommand:
+                    print(str(self.players[command.playerId]) + " researched " + database.get_tech(command.techId) + " at " + self.game_time_formatted(time))
+                else:                
+                    pass    
+                    # print(command)
             time += update.time
-    
+
+    def game_time_formatted(self, ms=None):
+        if ms is None:
+            ms = self.game_time_milliseconds()
+        seconds = ms/1000
+        mins = int(seconds) // 60
+        secs = int(seconds) % 60
+        return f"{mins}:{secs:02}"
+
 def main():
     # base_path = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Age of Mythology\\savegame\\"
     # # base_path = "/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/"
@@ -491,13 +527,15 @@ def main():
     #         except Exception as e:
     #             print(e)            
     # fd.close()
+    rec = Rec("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/"+"Replay v2.8 @2022.09.15 174819.rcx")
+    # somehow 101 is hunting dogs
 
-    rec = Rec("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/"+"t_Replay v2.8 @2022.08.10 220004.rcx")
+    # rec = Rec("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/"+"t_Replay v2.8 @2022.08.10 220004.rcx")
     rec.parse(print_progress=True)
     rec.analyze_updates()
     rec.display_by_teams()
     # print(rec.winning)
-    print(rec.game_time_seconds())
+    print("Game time " + rec.game_time_formatted())
 
 if __name__ == '__main__':
     main()
