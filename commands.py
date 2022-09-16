@@ -3,7 +3,7 @@ class Command:
 
 
     def __init__(self):
-        pass
+        self.mRecipients = []
 
     def read(self,reader):
         self.num = reader.read_one()
@@ -23,7 +23,7 @@ class Command:
 
         self.mRecipientsLen = reader.read_four()
         for i in range(self.mRecipientsLen):
-            reader.read_four()
+            self.mRecipients.append(reader.read_four())
         
         self.waypointsLen = reader.read_four()
         for i in range(self.waypointsLen):
@@ -292,18 +292,18 @@ class BuildCommand(Command):
         self.field_cc = reader.read_four()
 
 class WorkCommand(Command):
+    # Potentially a group of units (mRecipients) does work on a unit
+
     def __init__(self):
         super().__init__()
 
     def read(self, reader):
         super().read(reader)
-        self.d1 = reader.read_four()
+        self.mUnitId = reader.read_four()
 
-        self.d2 = reader.read_four()
+        self.mRange = reader.read_four()
 
-        self.d3 = reader.read_four()
-        self.d4 = reader.read_four()
-        self.d5 = reader.read_four()
+        self.mTerrainPoint = reader.read_posVector()
     
 class AutoqueueCommand(Command):
     def __init__(self):

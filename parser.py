@@ -502,8 +502,7 @@ class Rec:
                 elif type(command) == Commands.ResearchCommand:
                     print(str(self.players[command.playerId]) + " researched " + database.get_tech(command.techId) + " at " + self.game_time_formatted(time))
                 else:                
-                    pass
-                    # print(command)
+                    print(command)
             time += update.time
 
     def game_time_formatted(self, ms=None):
@@ -529,7 +528,7 @@ def main():
     #         except Exception as e:
     #             print(e)
     # fd.close()
-    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.15 201228.rcx")
+    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.15 201811.rcx")
     rec.parse(print_progress=True)
     rec.analyze_updates()
     rec.display_by_teams()
