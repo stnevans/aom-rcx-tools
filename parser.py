@@ -607,8 +607,8 @@ def analyze_group(folderpath):
                     print("Error: " + file + " has no winner")
             except Exception as e:
                 print(e)
-    print(god_wins)
-    print(god_losses)
+    print("Winning gods " + str(god_wins))
+    print("Losing gods " + str(god_losses))
 def main():    
     # rec = Rec("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/" + "Recorded Game 4.rcx", is_ee=False)
     rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.15 174819.rcx")
