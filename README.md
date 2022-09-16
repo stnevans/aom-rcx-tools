@@ -44,6 +44,17 @@ Team #1 has won
 Game time 10:02
 ```
 
+## Example output of analyze_by_group
+```
+Zeus won 75% out of 4 games
+Poseidon won 50% out of 6 games
+Ra won 66% out of 3 games
+Loki won 100% out of 1 games
+Kronos won 0% out of 1 games
+Oranos won 0% out of 1 games
+Gaia won 100% out of 2 games
+```
+
 ## Things to configure
 At the top of parser.py these variables are used to find the aom files.
 

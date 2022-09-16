@@ -473,7 +473,8 @@ class Rec:
                     print("Parsing progress: {:.2f}%".format(self.reader.seek * 100 / len(self.reader.decomp)))
             if len(self.reader.decomp) == self.reader.seek:
                 break
-        print("Finished reading everything!")
+        if print_progress:
+            print("Finished reading everything!")
 
         # This stuff isn't currently used. this is the reading of the syncBobbers
         # It happens some time before the updates, but doesn't seem to be important
@@ -582,12 +583,12 @@ def analyze_group(folderpath):
     for file in os.listdir(folderpath):
         if file.endswith(".rcx"):
             try:
-                print(file)
+                # print(file)
                 rec = Rec(folderpath + file, is_ee=False)
                 rec.parse()
                 rec.analyze_updates()
-                rec.display_by_teams()
-                rec.print_winner()
+                # rec.display_by_teams()
+                # rec.print_winner()
                 winning_team = rec.get_winning_team()
                 if winning_team is not None:
                     for player in winning_team.players:
@@ -603,12 +604,22 @@ def analyze_group(folderpath):
                             god_losses[losing_civ] += 1
                         else:
                             god_losses[losing_civ] = 1
-                else:
-                    print("Error: " + file + " has no winner")
+                # else:
+                #     print("Error: " + file + " has no winner")
             except Exception as e:
                 print(e)
-    print("Winning gods " + str(god_wins))
-    print("Losing gods " + str(god_losses))
+    all_gods = ["Zeus", "Poseidon", "Hades", "Isis", "Ra", "Set", "Odin", "Thor", "Loki", "Kronos", "Oranos", "Gaia", "Fu Xi", "Nu Wa", "Shennong"]
+    for god in all_gods:
+        wins = 0
+        losses = 0
+        if god in god_wins:
+            wins = god_wins[god]
+        if god in god_losses:
+            losses = god_losses[god]
+        total = wins + losses
+        if total > 0:
+            percent_wins = int(wins/total * 100)
+            print(f"{god} won {percent_wins}% out of {total} games")
 def main():    
     # rec = Rec("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/" + "Recorded Game 4.rcx", is_ee=False)
     rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.15 174819.rcx")
