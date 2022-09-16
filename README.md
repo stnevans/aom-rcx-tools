@@ -26,17 +26,17 @@ Parsing progress: 66.90%
 Parsing progress: 80.34%
 Parsing progress: 93.73%
 Finished reading everything!
-Stoud(Zeus) researched Hunting Dogs at 0:23
-Stoud(Zeus) researched Age 2 Athena at 3:33
-Standard(Ra) researched Age 2 Bast at 3:58
-Stoud(Zeus) researched Pickaxe at 4:08
-Standard(Ra) researched Plow at 4:58
-Stoud(Zeus) researched Hand Axe at 5:23
-Standard(Ra) researched Husbandry at 5:48
-Standard(Ra) researched Medium Axemen at 6:04
-Stoud(Zeus) researched Medium Infantry at 7:13
-Stoud(Zeus) researched Husbandry at 7:37
-Stoud(Zeus) researched Medium Archers at 8:47
+Stoud(Zeus) clicked Hunting Dogs at 0:23
+Stoud(Zeus) clicked Age 2 Athena at 3:33
+Standard(Ra) clicked Age 2 Bast at 3:58
+Stoud(Zeus) clicked Pickaxe at 4:08
+Standard(Ra) clicked Plow at 4:58
+Stoud(Zeus) clicked Hand Axe at 5:23
+Standard(Ra) clicked Husbandry at 5:48
+Standard(Ra) clicked Medium Axemen at 6:04
+Stoud(Zeus) clicked Medium Infantry at 7:13
+Stoud(Zeus) clicked Husbandry at 7:37
+Stoud(Zeus) clicked Medium Archers at 8:47
 Standard(Ra) has resigned
 Team #1 - [Stoud(Zeus)]
 Team #2 - [Standard(Ra)]
