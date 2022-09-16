@@ -153,38 +153,40 @@ class RcxReader:
         return None
 
     def get_sync(self, loadFlags):
-        field_4c = 1
-        do_it = False
-        if self.field_8 < 1:
-            do_it = True
-        elif self.field_8 < 2:
-            if loadFlags < 128:
+        if self.is_ee:
+            field_4c = 1
+            do_it = False
+            if self.field_8 < 1:
                 do_it = True
+            elif self.field_8 < 2:
+                if loadFlags < 128:
+                    do_it = True
+            else:
+                if field_4c != 0:
+                    do_it = True
+            if do_it:
+                decider = self.read_one()
+                if decider != 0:
+                    self.read_sync_update()
         else:
-            if field_4c != 0:
-                do_it = True
-        if do_it:
-            decider = self.read_one()
-            if decider != 0:
-                self.read_sync_update()
+            if self.field_8 >= 2:
+                return
+            raise NotImplementedError("Field 8 weird")
 
     def read_sync_update(self):
-        if self.is_ee:
-            numSyncDatas = self.read_four()
+        numSyncDatas = self.read_four()
 
-            for i in range(numSyncDatas):
-                first = self.read_one()
-                self.read_one()
-                self.read_two()
-                if first & 0xf != 0x5:
-                    self.read_four()
+        for i in range(numSyncDatas):
+            first = self.read_one()
+            self.read_one()
+            self.read_two()
+            if first & 0xf != 0x5:
                 self.read_four()
-                self.read_four()
-            ar = self.read_four()
-            for i in range(ar):
-                self.read_four()
-        else:
-            raise NotImplementedError("Non ee sync not yet implemented")
+            self.read_four()
+            self.read_four()
+        ar = self.read_four()
+        for i in range(ar):
+            self.read_four()
     
     def read_posVector(self):
         return [self.read_four(), self.read_four(), self.read_four()]
@@ -260,7 +262,7 @@ class Update:
         self.num = num
 
 class Rec:
-    def __init__(self, filepath):
+    def __init__(self, filepath, is_ee=True):
         self.players = []
         self.updates = []
         self.teams = []
@@ -268,7 +270,7 @@ class Rec:
         self.filepath = filepath
 
         # Create our RcxReader
-        self.reader = RcxReader(filepath)
+        self.reader = RcxReader(filepath, is_ee)
         
         
     def parse_update(self, updateNum):
@@ -320,8 +322,8 @@ class Rec:
     
     def parse_header(self):
         # read game settings (lastGameSettings.xml)
-        lastGameXml = self.reader.read_file()          
-        self.xml = lastGameXml.decode("utf-16")
+        lastGameSettingsXml = self.reader.read_file()          
+        self.xml = lastGameSettingsXml.decode("utf-16")
 
         
         # read map script (recordGameRandomMap.xs)
@@ -431,7 +433,7 @@ class Rec:
 
     def parse(self, print_progress=False):
         self.parse_header()
-        
+
         # Now we parse all the updates
         for updateNum in range(1,0x1000000):
             pre = self.reader.seek
@@ -501,7 +503,16 @@ class Rec:
                     print(str(self.players[command.resigningPlayerId]) + " has resigned")
                 elif type(command) == Commands.ResearchCommand:
                     print(str(self.players[command.playerId]) + " researched " + database.get_tech(command.techId) + " at " + self.game_time_formatted(time))
+                # elif type(command) == Commands.WorkCommand:
+                #     print(command.playerId)
+                #     print(str(command.mUnitId))
+                #     print(str(command.mRange))
+                #     print(str(command.mTerrainPoint))
+
+                #     print(str(command.mRecipients))
+                #     print()
                 else:                
+                    pass
                     print(command)
             time += update.time
 
@@ -528,11 +539,14 @@ def main():
     #         except Exception as e:
     #             print(e)
     # fd.close()
-    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.15 201811.rcx")
+    
+    rec = Rec("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/" + "Recorded Game 9.rcx", is_ee=False)
+    # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.15 201811.rcx")
     rec.parse(print_progress=True)
     rec.analyze_updates()
     rec.display_by_teams()
     print("Game time " + rec.game_time_formatted())
+    print(rec.recordGameMap.splitlines()[0:5])
 
 if __name__ == '__main__':
     main()
