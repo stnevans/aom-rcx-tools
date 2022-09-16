@@ -513,7 +513,7 @@ class Rec:
                 #     print()
                 else:                
                     pass
-                    print(command)
+                    # print(command)
             time += update.time
 
     def game_time_formatted(self, ms=None):
@@ -546,7 +546,7 @@ def main():
     rec.analyze_updates()
     rec.display_by_teams()
     print("Game time " + rec.game_time_formatted())
-    print(rec.recordGameMap.splitlines()[0:5])
+    # print(rec.recordGameMap.splitlines()[0:5])
 
 if __name__ == '__main__':
     main()
