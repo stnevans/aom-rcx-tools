@@ -21,9 +21,27 @@ LOAD_FLAGS_CAMERA3 = 0x8
 LOAD_FLAGS_CAMERA46 = 0x10
 LOAD_FLAGS_COMMANDS = 0x20 #might actually be COMMANDS_FEW or smth like that
 LOAD_FLAGS_SELECTED_UNITS = 0x80
-NATURE_CIV = 22
 
+class CivManager:
 
+    def __init__(self, is_ee):
+        ee_gods = ["Zeus", "Poseidon", "Hades", "Isis", "Ra", "Set", "Odin", "Thor", "Loki", "Kronos", "Oranos", "Gaia", "Fu Xi", "Nu Wa", "Shennong", "4", "5", "6", "7", "8", "9", "10", "Nature", "12", "13", "14", "15", "16"]
+        aot_gods = ["Zeus","Poseidon", "Hades", "Isis", "Ra", "Set", "Odin", "Thor", "Loki", "Kronos", "Oranos", "Gaia", "2", "3", "4", "5", "6", "Nature"]
+        EE_NATURE_CIV = 22
+        AOT_NATURE_CIV = 17
+
+        if is_ee:
+            self.gods = ee_gods
+            self.nature_idx = EE_NATURE_CIV
+        else:
+            self.gods = aot_gods
+            self.nature_idx = AOT_NATURE_CIV
+
+    def get_god(self, civ_idx):
+        return self.gods[civ_idx]
+
+    def get_nature_idx(self):
+        return self.nature_idx
 class TechTreeDatabase:
     # Tech tree uses an odd format for ids
     # It doesn't store the actual id. DBID is not used as the tech id
@@ -52,7 +70,7 @@ class RcxReader:
     seek = 0
     is_ee = True
 
-    def __init__(self, filepath, is_ee=True):
+    def __init__(self, filepath, is_ee):
         # Read the data
         with open(filepath, "rb") as f:
             all = f.read()
@@ -210,14 +228,14 @@ class RcxReader:
         return self.read_section(totalSize, blockSize)
 
 class Player:
-    gods = ["Zeus", "Poseidon", "Hades", "Isis", "Ra", "Set", "Odin", "Thor", "Loki", "Kronos", "Oranos", "Gaia", "Fu Xi", "Nu Wa", "Shennong", "4", "5", "6", "7", "8", "9", "10", "Nature", "12", "13", "14", "15", "16"]
-    def __init__(self, civ, team, idx, isObserver=False):
+    def __init__(self, civ, team, idx, civ_mgr, isObserver=False):
         self.civ = civ
         self.team = team
         self.idx = idx
         self.name = ""
         self.isResigned = False
         self.isObserver = isObserver
+        self.civ_mgr = civ_mgr
 
     def setName(self, name):
         self.name = name
@@ -227,7 +245,7 @@ class Player:
         self.isResigned = True
 
     def __str__(self):
-        return self.name + "(" + self.gods[self.civ] + ")"
+        return self.name + "(" + self.civ_mgr.get_god(self.civ) + ")"
 
     def __repr__(self):
         return self.__str__()
@@ -271,6 +289,8 @@ class Rec:
 
         # Create our RcxReader
         self.reader = RcxReader(filepath, is_ee)
+        self.civ_mgr = CivManager(is_ee)
+        self.is_ee = is_ee
         
         
     def parse_update(self, updateNum):
@@ -335,7 +355,7 @@ class Rec:
             playerCiv = self.reader.read_four()
             playerTeam = self.reader.read_four()
             
-            curPlayer = Player(playerCiv, playerTeam, i-1)
+            curPlayer = Player(playerCiv, playerTeam, i-1, self.civ_mgr)
             self.players.append(curPlayer)
         
         # Match players we just read with players from Xml File
@@ -382,7 +402,7 @@ class Rec:
         # Add players to their team
 
         for player in self.players:
-            if player.civ != NATURE_CIV:
+            if player.civ != self.civ_mgr.get_nature_idx():
                 self.teams[player.team-1].addPlayer(player)
             
 
@@ -502,7 +522,7 @@ class Rec:
                     self.players[command.resigningPlayerId].resign(time)
                     print(str(self.players[command.resigningPlayerId]) + " has resigned")
                 elif type(command) == Commands.ResearchCommand:
-                    print(str(self.players[command.playerId]) + " researched " + database.get_tech(command.techId) + " at " + self.game_time_formatted(time))
+                    print(str(self.players[command.playerId]) + " clicked " + database.get_tech(command.techId) + " at " + self.game_time_formatted(time))
                 # elif type(command) == Commands.WorkCommand:
                 #     print(command.playerId)
                 #     print(str(command.mUnitId))
@@ -540,8 +560,8 @@ def main():
     #             print(e)
     # fd.close()
     
-    rec = Rec("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/" + "Recorded Game 9.rcx", is_ee=False)
-    # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.15 201811.rcx")
+    # rec = Rec("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/" + "Recorded Game 1.rcx", is_ee=False)
+    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.16 040323.rcx")
     rec.parse(print_progress=True)
     rec.analyze_updates()
     rec.display_by_teams()

@@ -54,3 +54,4 @@ Another common AOM_PATH might be `C:\Program Files (x86)\Steam\steamapps\common\
 
 ## Known issues
 - If someone loses in a manner other than resigning we can't detect their loss
+- We can't detect if someone actually researched something or just clicked on it. Not sure if it's possible to do so at all.
