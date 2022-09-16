@@ -245,10 +245,13 @@ class Player:
         self.isResigned = True
 
     def __str__(self):
-        return self.name + "(" + self.civ_mgr.get_god(self.civ) + ")"
+        return self.name + "(" + self.get_civ_str() + ")"
 
     def __repr__(self):
         return self.__str__()
+
+    def get_civ_str(self):
+        return self.civ_mgr.get_god(self.civ)
 
 class Team:
     def __init__(self, name, id):
@@ -403,7 +406,8 @@ class Rec:
 
         for player in self.players:
             if player.civ != self.civ_mgr.get_nature_idx():
-                self.teams[player.team-1].addPlayer(player)
+                if player.name != "":
+                    self.teams[player.team-1].addPlayer(player)
             
 
         # We now read more info about the players.
@@ -483,9 +487,14 @@ class Rec:
     def display_by_teams(self):
         for team in self.teams:
             print(team)
-        for team in self.teams:
-            if not team.is_lost():
-                print(team.name + " has won")
+
+    def print_winner(self):
+        winningTeam = self.get_winning_team()
+        if winningTeam is not None:
+            print(winningTeam.name + " has won")
+        else:
+            print("Game not finished")
+
 
     def get_display_string(self):
         teams = [[] for i in range(len(self.players))]
@@ -512,7 +521,11 @@ class Rec:
             time += update.time
         return time
 
-    def analyze_updates(self):
+    def print_checked(self, input, print_info):
+        if print_info:
+            print(input)
+
+    def analyze_updates(self, print_info=False):
         database = TechTreeDatabase()
         time = 0
         for update in self.updates:
@@ -520,9 +533,9 @@ class Rec:
             for command in commands:
                 if type(command) == Commands.ResignCommand:
                     self.players[command.resigningPlayerId].resign(time)
-                    print(str(self.players[command.resigningPlayerId]) + " has resigned")
+                    self.print_checked(str(self.players[command.resigningPlayerId]) + " has resigned", print_info)
                 elif type(command) == Commands.ResearchCommand:
-                    print(str(self.players[command.playerId]) + " clicked " + database.get_tech(command.techId) + " at " + self.game_time_formatted(time))
+                    self.print_checked(str(self.players[command.playerId]) + " clicked " + database.get_tech(command.techId) + " at " + self.game_time_formatted(time), print_info)
                 # elif type(command) == Commands.WorkCommand:
                 #     print(command.playerId)
                 #     print(str(command.mUnitId))
@@ -544,29 +557,66 @@ class Rec:
         secs = int(seconds) % 60
         return f"{mins}:{secs:02}"
 
-def main():
-    # base_path = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Age of Mythology\\savegame\\"
-    # # base_path = "/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/"
-    # fd = open("recs.txt", "w")
-    # for file in os.listdir(base_path):
-    #     if file.endswith(".rcx"):
-    #         try:
-    #             print(file)
-    #             rec = Rec(base_path + file)
-    #             rec.display_by_teams()
-    #             fd.write(file + "\n")
-    #             fd.write(rec.get_display_string())
-    #         except Exception as e:
-    #             print(e)
-    # fd.close()
+
+    def get_winning_team(self):
+        winningTeam = None
+        winners = 0
+        for team in self.teams:
+            if not team.is_lost():
+                winningTeam = team
+                winners += 1
+        if winners == 1:
+            return winningTeam
+        return None
     
-    # rec = Rec("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/" + "Recorded Game 1.rcx", is_ee=False)
-    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.16 040323.rcx")
+    def get_losing_teams(self):
+        losingTeams = []
+        for team in self.teams:
+            if team.is_lost():
+                losingTeams.append(team)
+        return losingTeams
+            
+def analyze_group(folderpath):
+    god_wins = {}
+    god_losses = {}
+    for file in os.listdir(folderpath):
+        if file.endswith(".rcx"):
+            try:
+                print(file)
+                rec = Rec(folderpath + file, is_ee=False)
+                rec.parse()
+                rec.analyze_updates()
+                rec.display_by_teams()
+                rec.print_winner()
+                winning_team = rec.get_winning_team()
+                if winning_team is not None:
+                    for player in winning_team.players:
+                        winning_civ = player.get_civ_str()
+                        if winning_civ in god_wins:
+                            god_wins[winning_civ] += 1
+                        else:
+                            god_wins[winning_civ] = 1
+                    for losing_team in rec.get_losing_teams():
+                        for player in losing_team.players:
+                            losing_civ = player.get_civ_str()
+                        if losing_civ in god_losses:
+                            god_losses[losing_civ] += 1
+                        else:
+                            god_losses[losing_civ] = 1
+                else:
+                    print("Error: " + file + " has no winner")
+            except Exception as e:
+                print(e)
+    print(god_wins)
+    print(god_losses)
+def main():    
+    # rec = Rec("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/" + "Recorded Game 4.rcx", is_ee=False)
+    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.15 174819.rcx")
     rec.parse(print_progress=True)
-    rec.analyze_updates()
+    rec.analyze_updates(print_info=True)
     rec.display_by_teams()
     print("Game time " + rec.game_time_formatted())
-    # print(rec.recordGameMap.splitlines()[0:5])
+    analyze_group("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/")
 
 if __name__ == '__main__':
     main()
