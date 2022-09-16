@@ -6,8 +6,13 @@ import ntpath
 import os
 import sys
 
-
 import commands as Commands
+
+
+AOM_PATH = "/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/"
+AOM_VERSION = "2.8"
+
+
 
 LOAD_FLAGS_TIME = 0x1
 LOAD_FLAGS_CAMERA1 = 0x2
@@ -20,21 +25,22 @@ NATURE_CIV = 22
 
 
 class TechTreeDatabase:
+    # Tech tree uses an odd format for ids
+    # It doesn't store the actual id. DBID is not used as the tech id
+    # Instead its just the order of techs in the file. 
+    # e.g. the first tech in the file has an id of 0
+
     def __init__(self):
         self.techs = []
-        # TECH_TREE_XML_PATH = "/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/data-dev/techtreex.xml"
-        TECH_TREE_XML_PATH = "/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/data/techtree2.8.xml"
-        with open(TECH_TREE_XML_PATH, 'r') as f:
+        tech_tree_path = AOM_PATH + os.sep + "data" + os.sep + "techtree" + AOM_VERSION + ".xml"
+        with open(tech_tree_path, 'r') as f:
             for line in f:
-                # test = "	<tech name="
-                # print(line.lower())
                 if "tech name=".lower() in line.lower():
                     startFind = "name="
                     endFind = "type="
                     self.techs.append(line[line.find(startFind)+len(startFind)+1:line.find(endFind)-2])
 
     def get_tech(self, id):
-        # print(self.techs, id)
         return self.techs[id]
 
 def path_leaf(path):
@@ -361,7 +367,6 @@ class Rec:
             teamId = self.reader.read_four()
             sz = self.reader.read_four()
             teamDesc = self.reader.read_n(sz)
-            print(teamDesc, teamId)
 
             if teamId-1 < len(self.teams):
                 self.teams[teamId-1].set_name(teamDesc)
@@ -437,7 +442,7 @@ class Rec:
                 print(updateNum)
                 raise e
             self.updates.append(update)
-            if updateNum % 5000 == 0:
+            if updateNum % 20000 == 0:
                 if print_progress:
                     print("Parsing progress: {:.2f}%".format(self.reader.seek * 100 / len(self.reader.decomp)))
             if len(self.reader.decomp) == self.reader.seek:
@@ -490,9 +495,6 @@ class Rec:
         time = 0
         for update in self.updates:
             commands = update.commands
-            # if time/1000 > 599 and time/1000 < 602:
-            #     print(commands)
-            # print(time/1000, self.game_time_formatted(ms=time))
             for command in commands:
                 if type(command) == Commands.ResignCommand:
                     self.players[command.resigningPlayerId].resign(time)
@@ -500,7 +502,7 @@ class Rec:
                 elif type(command) == Commands.ResearchCommand:
                     print(str(self.players[command.playerId]) + " researched " + database.get_tech(command.techId) + " at " + self.game_time_formatted(time))
                 else:                
-                    pass    
+                    pass
                     # print(command)
             time += update.time
 
@@ -525,16 +527,12 @@ def main():
     #             fd.write(file + "\n")
     #             fd.write(rec.get_display_string())
     #         except Exception as e:
-    #             print(e)            
+    #             print(e)
     # fd.close()
-    rec = Rec("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/"+"Replay v2.8 @2022.09.15 174819.rcx")
-    # somehow 101 is hunting dogs
-
-    # rec = Rec("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/"+"t_Replay v2.8 @2022.08.10 220004.rcx")
+    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.15 201228.rcx")
     rec.parse(print_progress=True)
     rec.analyze_updates()
     rec.display_by_teams()
-    # print(rec.winning)
     print("Game time " + rec.game_time_formatted())
 
 if __name__ == '__main__':
