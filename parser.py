@@ -16,7 +16,6 @@ AOM_PATH = "/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/"
 AOM_VERSION = "2.8"
 
 
-
 LOAD_FLAGS_TIME = 0x1
 LOAD_FLAGS_CAMERA1 = 0x2
 LOAD_FLAGS_CAMERA2 = 0x4
@@ -25,6 +24,10 @@ LOAD_FLAGS_CAMERA46 = 0x10
 LOAD_FLAGS_COMMANDS_FEW = 0x20
 LOAD_FLAGS_COMMANDS_MANY = 0x40
 LOAD_FLAGS_SELECTED_UNITS = 0x80
+
+PLAYER_TYPE_OBS = 4
+PLAYER_TYPE_HUMAN = 0
+PLAYER_TYPE_COMP = 1
 
 class CivManager:
     def __init__(self, is_ee):
@@ -376,7 +379,6 @@ class Rec:
         for i in range(smth):
             self.reader.read_one()
 
-
         # byte read from header field_4c
 
         # Read sync info
@@ -409,7 +411,10 @@ class Rec:
         # This lets us find attributes such as the player name
         num_observers = 0
         root = ET.fromstring(self.xml)
+
+        # Read controlled player
         self.controlledPlayer = int(root.findall("CurrentPlayer")[0].text)
+        # Iterate through all players and get their civ
         for player_ele in root.findall("Player"):
             if 'ClientIndex' in player_ele.attrib:
                 idx = player_ele.attrib['ClientIndex']
@@ -422,17 +427,13 @@ class Rec:
             player = self.players[idx-num_observers]
             name = player_ele.find("Name").text 
             if idx == self.controlledPlayer:
-                # print(str(self.controlledPlayer) + " is now")
                 self.controlledPlayer -= num_observers
-                # print(str(self.controlledPlayer) + " is now")
-            if player_type == 0: ## todo or 1
+            if player_type == PLAYER_TYPE_HUMAN: ## todo or 1
                 if name is not None:
-                    player.setName(player_ele.find("Name").text)
-            elif player_type == 4:
+                    player.setName(name)
+            elif player_type == PLAYER_TYPE_OBS:
                 num_observers += 1
-            
-            # print(player,team,player.team,self.civ_mgr.get_god(int(player_ele.find("Civilization").text)))
-        # Read controlled player
+
         
         
         # Skip 1 + 4 + 4 + 4 bytes found after the civ,team info
@@ -685,12 +686,13 @@ def analyze_group(folderpath):
                 #     print("Error: " + file + " has no winner")
             except Exception as e:
                 print(e, file)
+                e = str(e)
                 if e in errors:
                     abc = errors[e]
                     abc[0] += 1
                     abc[1].append(file)
                 else:
-                    errors[e] = (1, [file]) 
+                    errors[e] = [1, [file]] 
     all_gods = ["Zeus", "Poseidon", "Hades", "Isis", "Ra", "Set", "Odin", "Thor", "Loki", "Kronos", "Oranos", "Gaia", "Fu Xi", "Nu Wa", "Shennong"]
     for god in all_gods:
         wins = 0
@@ -704,43 +706,23 @@ def analyze_group(folderpath):
             percent_wins = int(wins/total * 100)
             print(f"{god} won {percent_wins}% out of {total} games")
     print(errors)
+
+
 def main():
-    
-    # rec = Rec("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/" + "Recorded Game 4.rcx", is_ee=False)
-    
-    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.15 200914.rcx") # this is the player disconnect at end
+    # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"son_of.rcx",is_ee=False) # this is the player disconnect at end
     #Replay v2.8 @2021.08.17 222439.rcx
     # Replay v2.8 @2021.08.18 162542.rcx
     # Replay v2.8 @2022.01.20 183827.rcx
     #observer stuff Replay v2.8 @2021.08.19 214544.rcx
-    # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2020.10.20 014718.rcx") # this is the player disconnect at end
-     
+    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2020.10.20 014718.rcx") # this is the player disconnect at end
+    rec = Rec("/mnt/c/Users/stnevans/Downloads/multiple_obs_in_1v1_wrong_player.rcx")
     rec.parse(print_progress=True)
     rec.analyze_updates(print_info=True)
     rec.display_by_teams()
     rec.print_winner()
     print("Game time " + rec.game_time_formatted())
     # analyze_group("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/")
-    # analyze_group(AOM_PATH+os.sep+"savegame/")
-
-
-    #Replay v2.8 @2020.07.22 230037.rcx - bugged
-    #Replay v2.8 @2020.09.05 002031.rcx spectator test - rcx midgame too
-    #not well-formed (invalid token): line 63, column 17 Replay v2.8 @2020.09.19 210659.rcx
-
-
-
-#    At offset 0x42ac1 and update 0x641 we had an error.
-#unpack requires a buffer of 1 bytes Replay v2.8 @2020.09.30 000141.rcx
-
-#
-#Command 0x34 not implemented
-#At offset 0xc09c95 and update 0x1a05f we had an error.
-#'NoneType' object has no attribute 'read' Replay v2.8 @2020.10.28 025212.rcx
-
-# Command 0x20 not implemented
-# At offset 0x35cf8 and update 0x3a3 we had an error.
-# 'NoneType' object has no attribute 'read' Replay v2.8 @2020.12.04 212224.rcx
+    # analyze_group(AOM_PATH+os.sep+"test/")
 
 if __name__ == '__main__':
     main()
