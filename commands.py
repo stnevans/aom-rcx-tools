@@ -217,9 +217,7 @@ class PlayerDisconnectCommand(Command):
         super().__init__()
 
     def read(self, reader):
-        print("BEFORE = " + hex(reader.seek))
-        self.playerId = reader.read_four()
-
+        self.ac = reader.read_four()
         super().read(reader)
 
 class SpecialPowerCommand(Command):

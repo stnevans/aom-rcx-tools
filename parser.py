@@ -19,11 +19,11 @@ LOAD_FLAGS_CAMERA1 = 0x2
 LOAD_FLAGS_CAMERA2 = 0x4
 LOAD_FLAGS_CAMERA3 = 0x8
 LOAD_FLAGS_CAMERA46 = 0x10
-LOAD_FLAGS_COMMANDS = 0x20 #might actually be COMMANDS_FEW or smth like that
+LOAD_FLAGS_COMMANDS_FEW = 0x20
+LOAD_FLAGS_COMMANDS_MANY = 0x40
 LOAD_FLAGS_SELECTED_UNITS = 0x80
 
 class CivManager:
-
     def __init__(self, is_ee):
         ee_gods = ["Zeus", "Poseidon", "Hades", "Isis", "Ra", "Set", "Odin", "Thor", "Loki", "Kronos", "Oranos", "Gaia", "Fu Xi", "Nu Wa", "Shennong", "4", "5", "6", "7", "8", "9", "10", "Nature", "12", "13", "14", "15", "16"]
         aot_gods = ["Zeus","Poseidon", "Hades", "Isis", "Ra", "Set", "Odin", "Thor", "Loki", "Kronos", "Oranos", "Gaia", "2", "3", "4", "5", "6", "Nature"]
@@ -107,6 +107,39 @@ class RcxReader:
         # This seek is so late because there is a ton of stuff read into global config vars
         # This happens due to World::readStuff_likeCommandsActions (0x67fca0)
         # AFAIK, none of the config stuff seems relevant for the case of rcx's
+
+
+        self.field_8 = self.read_four() # Should always be 3
+        if not self.field_8 == 3:
+            raise NotImplementedError("Field 8 not 3. We haven't really supported this")
+
+        cur_time = self.read_four()
+        v20 = self.read_four()
+        field_4c = self.read_one()
+        v54 = self.read_four()
+
+        field_14 = self.read_four()
+        v58 = self.read_four()
+
+        v3c0 = self.read_four()
+        field_e0 = self.read_one()
+
+        field_104 = self.read_four()
+        
+        v3b5 = self.read_one()
+        if v3b5 != 0:
+            n = self.read_four()
+            for i in range(n):
+                self.read_four()
+            a120 = self.read_four()
+            n = self.read_four()
+            for i in range(n):
+                self.read_four()
+        v3b5 = self.read_one()
+        f_54 = self.read_four()
+        v3d0 = self.read_four()
+        
+        # World::readStuff_likeCommandsActions consumes 1210
         self.seek = 1474 if is_ee else 1466 # non ee should be checked
 
         self.is_ee = is_ee
@@ -155,9 +188,9 @@ class RcxReader:
         return up_time
     
     def read_num_commands(self, loadFlags):
-        if loadFlags & LOAD_FLAGS_COMMANDS:
+        if loadFlags & LOAD_FLAGS_COMMANDS_FEW:
             return self.read_one()
-        if loadFlags & 0x40 == 0:
+        if loadFlags & LOAD_FLAGS_COMMANDS_MANY == 0:
             return 0
         return self.read_four()
 
@@ -301,10 +334,6 @@ class Rec:
         commands = []
 
         loadFlags = self.reader.read_one()
-        if loadFlags & 0x40:
-            # Haven't seen yet, don't know how to handle for sure
-            # Might be missing some stuff. It might also just work.  
-            raise ValueError("ERROR LOADFLAGS") 
 
         self.reader.read_camera(loadFlags)
 
@@ -312,10 +341,16 @@ class Rec:
 
         # Read the commands
         numCommands = self.reader.read_num_commands(loadFlags)
-
         commands = [None] * numCommands
         for i in range(numCommands):
             commands[i] = self.reader.get_command(loadFlags)
+            cmd = commands[i]
+            if type(cmd) == Commands.PlayerDisconnectCommand:
+                pass
+            if type(cmd) == Commands.PlayerDisconnectCommand:
+                if cmd.playerId == self.controlledPlayer:
+                    return Update(updateNum, commands, selectedUnits, upTime), False
+
 
         # Read the selected units
         if loadFlags & LOAD_FLAGS_SELECTED_UNITS:
@@ -337,29 +372,28 @@ class Rec:
         # Read sync info
         self.reader.get_sync(loadFlags)
 
-        
         if self.reader.field_8 < 1:
             # self.validate_read()
             pass
-        return Update(updateNum, commands, selectedUnits, upTime)
+        return Update(updateNum, commands, selectedUnits, upTime), True
     
     def parse_header(self):
         # read game settings (lastGameSettings.xml)
         lastGameSettingsXml = self.reader.read_file()          
         self.xml = lastGameSettingsXml.decode("utf-16")
 
-        
         # read map script (recordGameRandomMap.xs)
         self.recordGameMap = self.reader.read_file()
         
         # Read info about the players (civ, team)
         numPlayers = self.reader.read_four()
         for i in range(numPlayers):
-            playerCiv = self.reader.read_four()
-            playerTeam = self.reader.read_four()
+            playerCiv = self.reader.read_four_s()
+            playerTeam = self.reader.read_four_s()
             
             curPlayer = Player(playerCiv, playerTeam, i-1, self.civ_mgr)
             self.players.append(curPlayer)
+            
         
         # Match players we just read with players from Xml File
         # This lets us find attributes such as the player name
@@ -373,7 +407,10 @@ class Rec:
             name = player_ele.find("Name").text 
             if name is not None:
                 player.setName(player_ele.find("Name").text )
-        
+
+        # Read controlled player
+        self.controlledPlayer = int(root.findall("CurrentPlayer")[0].text)
+
         # Skip 1 + 4 + 4 + 4 bytes found after the civ,team info
         self.reader.skip(9)
         self.reader.skip(4)
@@ -403,13 +440,16 @@ class Rec:
                 data = self.reader.read_four()
         
         # Add players to their team
-
         for player in self.players:
+            #TODO
+            # Check what's going on here. I think this is correct, but some of the above code may be wrong
+            # I still am not sure exactly how the game handles observers
+            if player.team == -1: 
+                continue
             if player.civ != self.civ_mgr.get_nature_idx():
                 if player.name != "":
                     self.teams[player.team-1].addPlayer(player)
             
-
         # We now read more info about the players.
         # Not exactly sure what all this is
         # In there is civ, culture, and maybe the default stance
@@ -426,7 +466,7 @@ class Rec:
                 continue
             check_3f = self.reader.read_four_s()
             god_flags_idk_dude = self.reader.read_one()
-            god_flags_idk_dude = self.reader.read_one()
+            god_flags_idk_dude2 = self.reader.read_one()
             maybe_stance = self.reader.read_four()
 
 
@@ -441,7 +481,7 @@ class Rec:
             culture = self.reader.read_four()
             civ = self.reader.read_four()
 
-            field_18 = self.reader.read_four()
+            field_18 = self.reader.read_four() #seems to be team again
             field_4b4 = self.reader.read_four()
             field_4b8 = self.reader.read_four()
             if check_3f >= 0x3f:
@@ -450,7 +490,7 @@ class Rec:
                     print("PL NUM ERR")
                     return
                 if test2 > 0:
-                    for i in range(test2):
+                    for j in range(test2):
                         rel = self.reader.read_four()
             colors = self.reader.read_four()
     
@@ -459,13 +499,13 @@ class Rec:
         self.parse_header()
 
         # Now we parse all the updates
+        time = 0
         for updateNum in range(1,0x1000000):
             pre = self.reader.seek
             try:
-                update = self.parse_update(updateNum)
+                update, keep_read = self.parse_update(updateNum)
             except Exception as e:
-                print(hex(pre))
-                print(updateNum)
+                print("At offset " + hex(pre) +" and update " + hex(updateNum) + " we had an error.")
                 raise e
             self.updates.append(update)
             if updateNum % 20000 == 0:
@@ -473,6 +513,12 @@ class Rec:
                     print("Parsing progress: {:.2f}%".format(self.reader.seek * 100 / len(self.reader.decomp)))
             if len(self.reader.decomp) == self.reader.seek:
                 break
+            if not keep_read:
+                break
+            # print(hex(self.reader.seek), hex(updateNum), self.reader.seek-pre, hex(len(self.reader.decomp)))
+            time += update.time
+            # print(self.game_time_formatted(time))
+            # print(self.players)
         if print_progress:
             print("Finished reading everything!")
 
@@ -537,6 +583,9 @@ class Rec:
                     self.print_checked(str(self.players[command.resigningPlayerId]) + " has resigned", print_info)
                 elif type(command) == Commands.ResearchCommand:
                     self.print_checked(str(self.players[command.playerId]) + " clicked " + database.get_tech(command.techId) + " at " + self.game_time_formatted(time), print_info)
+                elif type(command) == Commands.PlayerDisconnectCommand:
+                    self.print_checked(str(self.players[command.playerId]) + " has disconnected", print_info)
+                    
                 # elif type(command) == Commands.WorkCommand:
                 #     print(command.playerId)
                 #     print(str(command.mUnitId))
@@ -545,7 +594,7 @@ class Rec:
 
                 #     print(str(command.mRecipients))
                 #     print()
-                else:                
+                else:
                     pass
                     # print(command)
             time += update.time
@@ -583,8 +632,8 @@ def analyze_group(folderpath):
     for file in os.listdir(folderpath):
         if file.endswith(".rcx"):
             try:
-                # print(file)
-                rec = Rec(folderpath + file, is_ee=False)
+                print(file)
+                rec = Rec(folderpath + file, is_ee=True)
                 rec.parse()
                 rec.analyze_updates()
                 # rec.display_by_teams()
@@ -607,7 +656,8 @@ def analyze_group(folderpath):
                 # else:
                 #     print("Error: " + file + " has no winner")
             except Exception as e:
-                print(e)
+                print(e, file)
+                # raise e
     all_gods = ["Zeus", "Poseidon", "Hades", "Isis", "Ra", "Set", "Odin", "Thor", "Loki", "Kronos", "Oranos", "Gaia", "Fu Xi", "Nu Wa", "Shennong"]
     for god in all_gods:
         wins = 0
@@ -620,14 +670,24 @@ def analyze_group(folderpath):
         if total > 0:
             percent_wins = int(wins/total * 100)
             print(f"{god} won {percent_wins}% out of {total} games")
-def main():    
+def main():
+    
     # rec = Rec("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/" + "Recorded Game 4.rcx", is_ee=False)
-    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.15 174819.rcx")
+    
+    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2021.08.19 214544.rcx") # this is the player disconnect at end
+    #Replay v2.8 @2021.08.17 222439.rcx
+    # Replay v2.8 @2021.08.18 162542.rcx
+    # Replay v2.8 @2022.01.20 183827.rcx
+    #observer stuff Replay v2.8 @2021.08.19 214544.rcx
+    # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2020.10.20 014718.rcx") # this is the player disconnect at end
+    
     rec.parse(print_progress=True)
     rec.analyze_updates(print_info=True)
     rec.display_by_teams()
-    print("Game time " + rec.game_time_formatted())
-    analyze_group("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/")
+    rec.print_winner()
+    # print("Game time " + rec.game_time_formatted())
+    # analyze_group("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/")
+    # analyze_group(AOM_PATH+os.sep+"test/")
 
 if __name__ == '__main__':
     main()
