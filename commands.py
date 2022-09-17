@@ -50,12 +50,12 @@ class Command:
                0x11: MarketCommand, 0x12: EjectCommand, 0x13: None,
                0x14: ResignCommand, 0x15: None, 0x16: EnterCommand, 0x17: TributeCommand,
                0x18: None, 0x19: None, 0x1a: None, 0x1b: None, 0x1c: TransformCommand,
-               0x1d: None, 0x1e: None, 0x1f: None, 0x20: None, 0x21: StanceCommand,
+               0x1d: None, 0x1e: None, 0x1f: None, 0x20: UnitTeleportCommand, 0x21: StanceCommand,
                0x22: None, 0x23: None, 0x24: None, 0x25: None, 0x26: None, 0x27: None,
                0x28: None, 0x29: None, 0x2a: TownBellCommand, 0x2b: ExploreCommand,
                0x2c: None, 0x2d: AdjustArmyCommand, 0x2e: RepairCommand, 0x2f: EmpowerCommand,
                0x30: None, 0x31: AiChatCommand, 0x32: PlayerDataCommand, 
-               0x33: FormationCommand, 0x34: None, 0x35: UnbuildCommand, 0x36: AutoqueueCommand,
+               0x33: FormationCommand, 0x34: GameCheatCommand, 0x35: UnbuildCommand, 0x36: AutoqueueCommand,
                0x37: PlayerAutoGatherModeCommand, 0x38: PlayerSpeedUpConstructionCommand, 0x39: PlayerDisconnectCommand}
         if commandNum not in map:
             print("Cannot find command in map. Probably wrong num")
@@ -64,6 +64,23 @@ class Command:
             print("Command " + hex(commandNum) + " not implemented")
             return None
         return map[commandNum]()
+
+class GameCheatCommand(Command):
+    def __init__(self):
+        super().__init__()
+    
+    def read(self, reader):
+        super().read(reader)
+        self.d1 = reader.read_four()
+        self.d2 = reader.read_four()
+class UnitTeleportCommand(Command):
+    def __init__(self):
+        super().__init__()
+    
+    def read(self, reader):
+        super().read(reader)
+        self.d1 = reader.read_posVector()
+
 class PlayerSpeedUpConstructionCommand(Command):
     def __init__(self):
         super().__init__()
@@ -217,6 +234,7 @@ class PlayerDisconnectCommand(Command):
         super().__init__()
 
     def read(self, reader):
+        # print("BEFORE = " + hex(reader.seek))
         self.ac = reader.read_four()
         super().read(reader)
 

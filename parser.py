@@ -1,10 +1,13 @@
 
+from multiprocessing.sharedctypes import Value
 import struct
 import zlib
 import xml.etree.ElementTree as ET
 import ntpath
 import os
 import sys
+
+from numpy import block
 
 import commands as Commands
 
@@ -258,6 +261,8 @@ class RcxReader:
     def read_file(self):
         totalSize = self.read_four()
         blockSize = self.read_four()
+        if blockSize == 0:
+            raise ValueError("Zero block size")
         return self.read_section(totalSize, blockSize)
 
 class Player:
@@ -348,6 +353,11 @@ class Rec:
             if type(cmd) == Commands.PlayerDisconnectCommand:
                 pass
             if type(cmd) == Commands.PlayerDisconnectCommand:
+                # print(cmd, cmd.playerId, cmd.ac, self.players)
+                # print(self.controlledPlayer)
+                # print(self.xml)
+                # print(self.players[cmd.playerId])
+                # print(self.controlledPlayer)
                 if cmd.playerId == self.controlledPlayer:
                     return Update(updateNum, commands, selectedUnits, upTime), False
 
@@ -397,20 +407,34 @@ class Rec:
         
         # Match players we just read with players from Xml File
         # This lets us find attributes such as the player name
+        num_observers = 0
         root = ET.fromstring(self.xml)
+        self.controlledPlayer = int(root.findall("CurrentPlayer")[0].text)
         for player_ele in root.findall("Player"):
             if 'ClientIndex' in player_ele.attrib:
                 idx = player_ele.attrib['ClientIndex']
             else:
                 idx = player_ele.attrib['ClientID']
-            player = self.players[int(idx)+1]
+            idx = int(idx)+1
+
+            player_type = int(player_ele.find("Type").text)
+            
+            player = self.players[idx-num_observers]
             name = player_ele.find("Name").text 
-            if name is not None:
-                player.setName(player_ele.find("Name").text )
-
+            if idx == self.controlledPlayer:
+                # print(str(self.controlledPlayer) + " is now")
+                self.controlledPlayer -= num_observers
+                # print(str(self.controlledPlayer) + " is now")
+            if player_type == 0: ## todo or 1
+                if name is not None:
+                    player.setName(player_ele.find("Name").text)
+            elif player_type == 4:
+                num_observers += 1
+            
+            # print(player,team,player.team,self.civ_mgr.get_god(int(player_ele.find("Civilization").text)))
         # Read controlled player
-        self.controlledPlayer = int(root.findall("CurrentPlayer")[0].text)
-
+        
+        
         # Skip 1 + 4 + 4 + 4 bytes found after the civ,team info
         self.reader.skip(9)
         self.reader.skip(4)
@@ -429,7 +453,7 @@ class Rec:
             teamId = self.reader.read_four()
             sz = self.reader.read_four()
             teamDesc = self.reader.read_n(sz)
-
+            
             if teamId-1 < len(self.teams):
                 self.teams[teamId-1].set_name(teamDesc)
             else:
@@ -444,6 +468,7 @@ class Rec:
             #TODO
             # Check what's going on here. I think this is correct, but some of the above code may be wrong
             # I still am not sure exactly how the game handles observers
+            # Maybe easiest thing to do is skip processing players
             if player.team == -1: 
                 continue
             if player.civ != self.civ_mgr.get_nature_idx():
@@ -493,11 +518,13 @@ class Rec:
                     for j in range(test2):
                         rel = self.reader.read_four()
             colors = self.reader.read_four()
+
+        
     
 
     def parse(self, print_progress=False):
         self.parse_header()
-
+        
         # Now we parse all the updates
         time = 0
         for updateNum in range(1,0x1000000):
@@ -627,6 +654,7 @@ class Rec:
         return losingTeams
             
 def analyze_group(folderpath):
+    errors = {}
     god_wins = {}
     god_losses = {}
     for file in os.listdir(folderpath):
@@ -649,15 +677,20 @@ def analyze_group(folderpath):
                     for losing_team in rec.get_losing_teams():
                         for player in losing_team.players:
                             losing_civ = player.get_civ_str()
-                        if losing_civ in god_losses:
-                            god_losses[losing_civ] += 1
-                        else:
-                            god_losses[losing_civ] = 1
+                            if losing_civ in god_losses:
+                                god_losses[losing_civ] += 1
+                            else:
+                                god_losses[losing_civ] = 1
                 # else:
                 #     print("Error: " + file + " has no winner")
             except Exception as e:
                 print(e, file)
-                # raise e
+                if e in errors:
+                    abc = errors[e]
+                    abc[0] += 1
+                    abc[1].append(file)
+                else:
+                    errors[e] = (1, [file]) 
     all_gods = ["Zeus", "Poseidon", "Hades", "Isis", "Ra", "Set", "Odin", "Thor", "Loki", "Kronos", "Oranos", "Gaia", "Fu Xi", "Nu Wa", "Shennong"]
     for god in all_gods:
         wins = 0
@@ -670,24 +703,44 @@ def analyze_group(folderpath):
         if total > 0:
             percent_wins = int(wins/total * 100)
             print(f"{god} won {percent_wins}% out of {total} games")
+    print(errors)
 def main():
     
     # rec = Rec("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/" + "Recorded Game 4.rcx", is_ee=False)
     
-    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2021.08.19 214544.rcx") # this is the player disconnect at end
+    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.15 200914.rcx") # this is the player disconnect at end
     #Replay v2.8 @2021.08.17 222439.rcx
     # Replay v2.8 @2021.08.18 162542.rcx
     # Replay v2.8 @2022.01.20 183827.rcx
     #observer stuff Replay v2.8 @2021.08.19 214544.rcx
     # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2020.10.20 014718.rcx") # this is the player disconnect at end
-    
+     
     rec.parse(print_progress=True)
     rec.analyze_updates(print_info=True)
     rec.display_by_teams()
     rec.print_winner()
-    # print("Game time " + rec.game_time_formatted())
+    print("Game time " + rec.game_time_formatted())
     # analyze_group("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/")
-    # analyze_group(AOM_PATH+os.sep+"test/")
+    # analyze_group(AOM_PATH+os.sep+"savegame/")
+
+
+    #Replay v2.8 @2020.07.22 230037.rcx - bugged
+    #Replay v2.8 @2020.09.05 002031.rcx spectator test - rcx midgame too
+    #not well-formed (invalid token): line 63, column 17 Replay v2.8 @2020.09.19 210659.rcx
+
+
+
+#    At offset 0x42ac1 and update 0x641 we had an error.
+#unpack requires a buffer of 1 bytes Replay v2.8 @2020.09.30 000141.rcx
+
+#
+#Command 0x34 not implemented
+#At offset 0xc09c95 and update 0x1a05f we had an error.
+#'NoneType' object has no attribute 'read' Replay v2.8 @2020.10.28 025212.rcx
+
+# Command 0x20 not implemented
+# At offset 0x35cf8 and update 0x3a3 we had an error.
+# 'NoneType' object has no attribute 'read' Replay v2.8 @2020.12.04 212224.rcx
 
 if __name__ == '__main__':
     main()
