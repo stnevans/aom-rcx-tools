@@ -58,7 +58,7 @@ class Command:
                0x33: FormationCommand, 0x34: GameCheatCommand, 0x35: UnbuildCommand, 0x36: AutoqueueCommand,
                0x37: PlayerAutoGatherModeCommand, 0x38: PlayerSpeedUpConstructionCommand, 0x39: PlayerDisconnectCommand}
         if commandNum not in map:
-            print("Cannot find command in map. Probably wrong num")
+            print(f"Cannot find command in map. Probably wrong num " + hex(commandNum))
             return None
         if map[commandNum] is None:
             print("Command " + hex(commandNum) + " not implemented")

@@ -65,6 +65,7 @@ Another common AOM_PATH might be `C:\Program Files (x86)\Steam\steamapps\common\
 ## Known issues
 - If someone loses in a manner other than resigning we can't detect their loss
 - We can't detect if someone actually researched something or just clicked on it. Not sure if it's possible to do so at all.
-
+- Recs that start from midway during a game are not supported.
 ## Todo
 - Verify games with observers work properly. As of now, I think the player names/civs may be incorrect. To be fair, the Aom:EE also has a bug where you start as the wrong player in (some?) recorded games with observers.
+- Make it so if you disconnect it counts as a loss or game not ended depending on state of other team.

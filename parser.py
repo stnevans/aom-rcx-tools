@@ -7,8 +7,6 @@ import ntpath
 import os
 import sys
 
-from numpy import block
-
 import commands as Commands
 
 
@@ -29,6 +27,7 @@ PLAYER_TYPE_OBS = 4
 PLAYER_TYPE_HUMAN = 0
 PLAYER_TYPE_COMP = 1
 
+START_LAST_TEAM_ID = -3
 class CivManager:
     def __init__(self, is_ee):
         ee_gods = ["Zeus", "Poseidon", "Hades", "Isis", "Ra", "Set", "Odin", "Thor", "Loki", "Kronos", "Oranos", "Gaia", "Fu Xi", "Nu Wa", "Shennong", "4", "5", "6", "7", "8", "9", "10", "Nature", "12", "13", "14", "15", "16"]
@@ -310,7 +309,16 @@ class Team:
         return True
 
     def __str__(self):
-        return self.name  + " - " + str(self.players)
+        prepend = ""
+        if self.is_observing_team():
+            prepend = "Observing "
+        return prepend + self.name  + " - " + str(self.players)
+    
+    def is_observing_team(self):
+        for player in self.players:
+            if not player.isObserver:
+                return False
+        return True 
 
 
 class Update:
@@ -399,14 +407,18 @@ class Rec:
         
         # Read info about the players (civ, team)
         numPlayers = self.reader.read_four()
+
+        # if not self.is_ee:
+        #     if numPlayers > 4:
+        #         raise NotImplementedError("Voobly games with > 3 players not supported. The 2 obs things is why")
+
         for i in range(numPlayers):
             playerCiv = self.reader.read_four_s()
             playerTeam = self.reader.read_four_s()
             
-            curPlayer = Player(playerCiv, playerTeam, i-1, self.civ_mgr)
+            curPlayer = Player(playerCiv, playerTeam, i-1, self.civ_mgr, isObserver=playerTeam==-1)
             self.players.append(curPlayer)
             
-        
         # Match players we just read with players from Xml File
         # This lets us find attributes such as the player name
         num_observers = 0
@@ -425,10 +437,10 @@ class Rec:
             player_type = int(player_ele.find("Type").text)
             
             player = self.players[idx-num_observers]
-            name = player_ele.find("Name").text 
+            name = player_ele.find("Name").text
             if idx == self.controlledPlayer:
                 self.controlledPlayer -= num_observers
-            if player_type == PLAYER_TYPE_HUMAN: ## todo or 1
+            if player_type == PLAYER_TYPE_HUMAN: ## todo or 1...actually idk could pollute stats
                 if name is not None:
                     player.setName(name)
             elif player_type == PLAYER_TYPE_OBS:
@@ -444,6 +456,9 @@ class Rec:
         self.difficulty = self.reader.read_four()
         maybeTeamNums = self.reader.read_four()
         
+        # I don't currently know if teamIds can descend. This lets us check for that
+        lastTeamId = START_LAST_TEAM_ID
+
         # For every player read some more info about them
         for i in range(maybeTeamNums):
             read_player = self.reader.read_one()
@@ -454,7 +469,11 @@ class Rec:
             teamId = self.reader.read_four()
             sz = self.reader.read_four()
             teamDesc = self.reader.read_n(sz)
-            
+            if not self.is_ee:
+                if lastTeamId != START_LAST_TEAM_ID:
+                    if teamId < lastTeamId:
+                        raise NotImplementedError("Descending team ids")
+
             if teamId-1 < len(self.teams):
                 self.teams[teamId-1].set_name(teamDesc)
             else:
@@ -463,6 +482,7 @@ class Rec:
             newNum = self.reader.read_four() #might be color stuff, can't remember
             for i in range(newNum):
                 data = self.reader.read_four()
+            lastTeamId = teamId
         
         # Add players to their team
         for player in self.players:
@@ -472,6 +492,10 @@ class Rec:
             # Maybe easiest thing to do is skip processing players
             if player.team == -1: 
                 continue
+            # voobly multiple observer stuff
+            if not self.is_ee:
+                if player.team == lastTeamId and num_observers >= 1 and maybeTeamNums > 3:
+                    player.isObserver = True
             if player.civ != self.civ_mgr.get_nature_idx():
                 if player.name != "":
                     self.teams[player.team-1].addPlayer(player)
@@ -608,7 +632,8 @@ class Rec:
             for command in commands:
                 if type(command) == Commands.ResignCommand:
                     self.players[command.resigningPlayerId].resign(time)
-                    self.print_checked(str(self.players[command.resigningPlayerId]) + " has resigned", print_info)
+                    if not self.players[command.resigningPlayerId].isObserver:
+                        self.print_checked(str(self.players[command.resigningPlayerId]) + " has resigned", print_info)
                 elif type(command) == Commands.ResearchCommand:
                     self.print_checked(str(self.players[command.playerId]) + " clicked " + database.get_tech(command.techId) + " at " + self.game_time_formatted(time), print_info)
                 elif type(command) == Commands.PlayerDisconnectCommand:
@@ -622,9 +647,10 @@ class Rec:
 
                 #     print(str(command.mRecipients))
                 #     print()
+
                 else:
                     pass
-                    # print(command)
+                    # print(command, self.game_time_formatted(time))
             time += update.time
 
     def game_time_formatted(self, ms=None):
@@ -640,6 +666,8 @@ class Rec:
         winningTeam = None
         winners = 0
         for team in self.teams:
+            if team.is_observing_team():
+                continue
             if not team.is_lost():
                 winningTeam = team
                 winners += 1
@@ -650,24 +678,38 @@ class Rec:
     def get_losing_teams(self):
         losingTeams = []
         for team in self.teams:
+            if team.is_observing_team():
+                continue
             if team.is_lost():
                 losingTeams.append(team)
         return losingTeams
             
-def analyze_group(folderpath):
+def analyze_group(folderpath, is_ee=True):
     errors = {}
     god_wins = {}
     god_losses = {}
+    folderpath += os.sep
+
+
+    duplicate_test = {}
     for file in os.listdir(folderpath):
         if file.endswith(".rcx"):
             try:
                 print(file)
-                rec = Rec(folderpath + file, is_ee=True)
+                rec = Rec(folderpath + file, is_ee=is_ee)
                 rec.parse()
                 rec.analyze_updates()
                 # rec.display_by_teams()
                 # rec.print_winner()
+                
                 winning_team = rec.get_winning_team()
+                losing_teams = rec.get_losing_teams()
+                if winning_team is None:
+                    print("No winning team ")
+                    continue
+                if len(losing_teams) < 1:
+                    print("No losing team")
+                    continue
                 if winning_team is not None:
                     for player in winning_team.players:
                         winning_civ = player.get_civ_str()
@@ -675,17 +717,34 @@ def analyze_group(folderpath):
                             god_wins[winning_civ] += 1
                         else:
                             god_wins[winning_civ] = 1
-                    for losing_team in rec.get_losing_teams():
+                    for losing_team in losing_teams:
                         for player in losing_team.players:
                             losing_civ = player.get_civ_str()
                             if losing_civ in god_losses:
                                 god_losses[losing_civ] += 1
                             else:
                                 god_losses[losing_civ] = 1
+                
+                if str(winning_team) in duplicate_test:
+                    losers = duplicate_test[str(winning_team)]
+                    
+                    for loser in losers:
+                        losing_team_str = loser[0]
+                        lose_file = loser[1]
+                        # print(str(losing_team), losing_team_str + " A ")
+                        if str(losing_team) == losing_team_str:
+                            print("Duplicate game: " + lose_file + " == " + file)
+                            continue
+                    losers.append([str(losing_team), file])
+                else:
+                    duplicate_test[str(winning_team)] = [[str(losing_team),file]]
+                # print(str(winning_team), str(losing_team))
+                    
+                # print(winning_team,"beat", losing_team)
                 # else:
                 #     print("Error: " + file + " has no winner")
             except Exception as e:
-                print(e, file)
+                print(e, file + " was here")
                 e = str(e)
                 if e in errors:
                     abc = errors[e]
@@ -706,23 +765,23 @@ def analyze_group(folderpath):
             percent_wins = int(wins/total * 100)
             print(f"{god} won {percent_wins}% out of {total} games")
     print(errors)
-
+    num_games = sum([god_wins[x] for x in ["Zeus", "Poseidon", "Hades", "Isis", "Ra", "Set", "Odin", "Thor", "Loki", "Kronos", "Oranos", "Gaia"]])
+    num_games2 = sum([god_losses[x] for x in ["Zeus", "Poseidon", "Hades", "Isis", "Ra", "Set", "Odin", "Thor", "Loki", "Kronos", "Oranos", "Gaia"]])
+    print(num_games2, num_games)
 
 def main():
     # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"son_of.rcx",is_ee=False) # this is the player disconnect at end
-    #Replay v2.8 @2021.08.17 222439.rcx
-    # Replay v2.8 @2021.08.18 162542.rcx
-    # Replay v2.8 @2022.01.20 183827.rcx
-    #observer stuff Replay v2.8 @2021.08.19 214544.rcx
     rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2020.10.20 014718.rcx") # this is the player disconnect at end
-    rec = Rec("/mnt/c/Users/stnevans/Downloads/multiple_obs_in_1v1_wrong_player.rcx")
-    rec.parse(print_progress=True)
-    rec.analyze_updates(print_info=True)
-    rec.display_by_teams()
-    rec.print_winner()
-    print("Game time " + rec.game_time_formatted())
-    # analyze_group("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/")
-    # analyze_group(AOM_PATH+os.sep+"test/")
+    # rec = Rec("/mnt/c/Users/stnevans/Downloads/megardm/momo_vs_kvoth_2.rcx", is_ee=False)
+    # rec.parse(print_progress=True)
+    # rec.analyze_updates(print_info=True)
+    # rec.display_by_teams()
+    # rec.print_winner()
+    # print("Game time " + rec.game_time_formatted())
+    analyze_group("/mnt/c/Users/stnevans/Downloads/megardm", is_ee=False)
+    # analyze_group("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/megardm")
+    # analyze_group("/mnt/c/Program Files (x86)/Microsoft Games/Age of Mythology/savegame/megardm", is_ee=False)
+    # analyze_group(AOM_PATH+os.sep+"savegame/")
 
 if __name__ == '__main__':
     main()
