@@ -69,3 +69,4 @@ Another common AOM_PATH might be `C:\Program Files (x86)\Steam\steamapps\common\
 ## Todo
 - Verify games with observers work properly. As of now, I think the player names/civs may be incorrect. To be fair, the Aom:EE also has a bug where you start as the wrong player in (some?) recorded games with observers.
 - Make it so if you disconnect it counts as a loss or game not ended depending on state of other team.
+- Make techtree voobly compatible.
