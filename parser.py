@@ -1,6 +1,7 @@
 
 from multiprocessing.sharedctypes import Value
 import struct
+from xxlimited import new
 import zlib
 import xml.etree.ElementTree as ET
 import ntpath
@@ -109,10 +110,6 @@ class RcxReader:
         # Setup vars
         self.decomp = decomp
         
-        # This seek is so late because there is a ton of stuff read into global config vars
-        # This happens due to World::readStuff_likeCommandsActions (0x67fca0)
-        # AFAIK, none of the config stuff seems relevant for the case of rcx's
-
 
         self.field_8 = self.read_four() # Should always be 3
         if not self.field_8 == 3:
@@ -134,23 +131,326 @@ class RcxReader:
         v3b5 = self.read_one()
         if v3b5 != 0:
             n = self.read_four()
+            # TODO
+            # AFAIK voobly puts a 25 here and ee puts a 26. Should be tested :)
+            # Would let us automate is_ee which would be really nice
+
+            for i in range(n):
+                self.read_four()
+            a120 = self.read_four()
+            n = self.read_four()
+            # TODO
+            # AFAIK voobly puts a 25 here and ee puts a 26. Should be tested :)
+            # Would let us automate is_ee which would be really nice
+            for i in range(n):
+                self.read_four()
+        v3b5 = self.read_one()
+        if v3b5 != 0:
+            n = self.read_four()
             for i in range(n):
                 self.read_four()
             a120 = self.read_four()
             n = self.read_four()
             for i in range(n):
                 self.read_four()
-        v3b5 = self.read_one()
-        f_54 = self.read_four()
-        v3d0 = self.read_four()
         
-        # World::readStuff_likeCommandsActions consumes 1210
-        self.seek = 1474 if is_ee else 1466 # non ee should be checked
+        self.f_54 = self.read_four() # Maybe is_restore
+        if not self.f_54:
+            v3d0 = self.read_four()
 
+        print(hex(self.seek))
+        # This seek is so late because there is a ton of stuff read into global config vars
+        # This happens due to World::readStuff_likeCommandsActions (0x67fca0)
+        # AFAIK, none of the config stuff seems relevant for the case of rcx's
+
+
+        # World::readStuff_likeCommandsActions consumes 1210
+        if self.f_54:
+            self.parse_svx()
+        self.seek = 1474 if is_ee else 1466 # non ee should be checked
+        
         self.is_ee = is_ee
         self.field_8 = 3 # This actually comes from some data. Should probably fix this at some point
-    
 
+
+    def readExpectedTag(self, expected_tag):
+        real_tag = self.read_two()
+        if real_tag != expected_tag:
+            raise ValueError("Bad tag read")
+        self.read_four()
+    
+    ### START SVX
+    def sub_512b30(self): # I am read 4 then n
+        n = self.read_four()
+        if n > 0:
+            data = (self.read_n(n*2))
+
+    def sub_7c16a0(self):
+        self.readExpectedTag(18242)
+        savedgamereader_fc = self.read_four()
+        if savedgamereader_fc < 0x19:
+            raise NotImplementedError("Not encountered")
+        self.sub_512b30()
+        
+        a5 = self.read_four()
+        
+        if a5 > 0:
+            raise NotImplementedError("Also not yet")
+        a3 = self.read_four()
+        self.sub_512b30()
+        return savedgamereader_fc
+
+
+    def read_player_cfg_data(self, a3):
+        type = self.read_one()
+        color1 = self.read_one()
+        color2 = self.read_one()
+        civ = self.read_one()
+        if a3 < 7:
+            self.read_one()
+        if a3 == 2:
+            self.read_two()
+
+    def read_world_cfg_data(self):
+        v8 = self.read_four_s()
+        if v8 < 9:
+            player_read = 0x10
+        else:
+            player_read = 0x11
+        for i in range(player_read):
+            self.read_player_cfg_data(v8)
+        if v8 <= 3:
+            return
+        numPlayers = self.read_four()
+        seed = self.read_four()
+        diff = self.read_four()
+        if v8 >= 5:
+            handicap = self.read_four()
+        if v8 >= 6:
+            gameplayMode = self.read_four()
+        if v8 < 8:
+            return
+        teamCreateMode = self.read_four()
+
+    def read_client_cfg_data_help(self, a3):
+        some_n = self.read_four()
+        if a3 >= 0xb:
+            self.read_n(2 * some_n)
+        else:
+            raise NotImplementedError("a3 less than 0xb")
+        if a3 != 3:
+            if a3 >= 4:
+                rating = self.read_four()
+            if a3 >= 8:
+                handicap = self.read_four()
+            if (a3 - 9) > 3:
+                return
+            self.read_one()
+            return
+        self.read_two()
+
+    def read_client_cfg_data(self, a3):
+        self.read_client_cfg_data_help(a3)
+        #back to MpClientConfigData::read
+
+        if a3 >= 2:
+            controlledPlayer = self.read_one()
+        if a3 >= 7:
+            team = self.read_one()
+
+    def read_game_cfg_data(self):
+        v8 = self.read_four()
+        i = 0
+        while True:
+            self.read_client_cfg_data(v8)
+            i += 1
+            if i >= 0x10:
+                break
+        if v8 >= 0xc:
+            n = self.read_four()
+            self.read_n(2 * n)
+        if v8 >= 0xe:
+            gameType = self.read_one()
+            flagSettings = self.read_four()
+            numPauses = self.read_one()
+            mapSize = self.read_one()
+            vis = self.read_one()
+            worldRes = self.read_one()
+            aiDiff = self.read_one()
+        if v8 >= 0xf:
+            treatyLen = self.read_one()
+        
+    def create_and_read_config_datas(self):
+        self.read_world_cfg_data()
+        self.read_game_cfg_data()
+
+
+    def sub_7c17e0(self):
+        data = self.read_one()
+        if data == 0:
+            raise NotImplementedError("This is bad state I think")
+        self.create_and_read_config_datas()
+    
+    def sub_4e24f0(self):
+        return self.read_four()
+
+    def sub_4e2310(self):
+        if self.fc > 0x1b:
+            self.sub_512b30()
+            self.read_four()
+            self.read_four()
+            v118 = self.read_four()
+            if self.fc >= 0xd:
+                self.read_four()
+            if self.fc < 0x1b:
+                return
+            arg2_1 =  self.read_four()
+            if arg2_1 != 1:
+                return
+            # readfileblock
+            n = self.read_four()
+            self.read_n(n)
+            
+        else:
+            raise NotImplementedError("Woops")
+
+    def sub_4e2590(self):
+        self.sub_7c17e0()
+        # more
+        v158 = self.sub_4e24f0() # is field 10
+        for i in range(v158):
+            # call field 14 i.e. sub_4e2310
+            self.sub_4e2310()
+        pass
+        # TODO see what happens if arg4 not 0
+        
+
+    def sub_45b9e0(self):
+        self.readExpectedTag(0x3352)
+        v_c = self.read_four()
+        sz = self.read_four()
+        data = self.read_n(sz)
+        if b'R3SG' not in data:
+            raise ValueError("R3SG check error")
+        self.read_one()
+
+    def sub_73a400_some_sel_mgr(self):
+        self.readExpectedTag(0x4d53)
+        v20 = self.read_four()
+        if v20 >= 1:
+            v14 = self.read_four()
+            for i in range(v14):
+                self.read_four()
+                self.read_four()
+        else:
+            raise NotImplementedError("v20 was 5")
+        if v20 < 1:
+            raise NotImplementedError("v20 was 5")
+        if v20 < 2:
+            raise NotImplementedError("v20 was 5")
+        if v20 < 4:
+            raise NotImplementedError("v20 was 5")
+        if v20 < 5:
+            raise NotImplementedError("v20 was 5")
+        a8 = self.read_four()
+        if a8 != 0xa:
+            raise NotImplementedError("Always hoped it was 0xa")
+
+        for i in range(a8):
+            newArrSz = self.read_four()
+            for j in range(newArrSz):
+                self.read_four()
+        
+    def sub_6cd5a0(self):
+        if self.fc >= 0x18:
+            self.read_one()
+    def sub_6cd7b0(self):
+        self.read_one()
+
+    def read_trigger(self):
+        v120 = self.read_four()
+        if v120 != 0:
+            f_30 = self.read_four()
+            if v120 > 1:
+                a1_38 = self.read_four()
+            if v120 > 2:
+                f_34 = self.read_four()
+        raise NotImplementedError("We did not finish this :(. Got bored and my test map had none")
+            
+    def read_trigger_group(self):
+
+        v114 = self.read_four()
+        if v114 < 0:
+            raise ValueError("Bad 114")
+        a1_0 = self.read_four()
+
+
+        n = self.read_four()
+        data = self.read_n(n)
+        v110 = self.read_four()
+        for i in range(v110):
+            self.read_four()
+
+    def sub_7a0880(self):
+
+        self.readExpectedTag(0x5254)
+        v18 = self.read_four()
+        if v18 <= 3:
+            raise ValueError("Idk looks bad")
+        a1_0 = self.read_four()
+        if v18 > 4:
+            a1_4 = self.read_four()
+        if v18 > 6:
+            a1_8 = self.read_four()
+        trigger_count = self.read_four()
+        for i in range(trigger_count):
+            self.read_trigger()
+        if v18 > 5:
+            trigger_group_count = self.read_four()
+            for i in range(trigger_group_count):
+                self.read_trigger_group()
+
+    def parse_svx(self):
+        print("Parsing svx")
+        # self.read_two()
+        # self.skip(6)
+        self.fc = self.sub_7c16a0() # fc is eax_11 is v18
+        # Taking arg3 == 0:
+        if self.fc >= 2:
+            self.sub_4e2590()
+        #stuff if arg3 is not 0
+        
+        if self.fc < 0x16:
+            raise NotImplementedError("We had 65")
+        gs3 = self.read_one()
+        if gs3 != 0:
+            raise NotImplementedError("Has been zero")
+
+        self.skip(6 * 10)
+
+        self.sub_45b9e0() # is field_188
+        if self.fc < 0x13:
+            raise NotImplementedError("Sorry, we had 65")
+        self.sub_73a400_some_sel_mgr()
+
+        if self.fc >= 0x33:
+            data_bc95d8 = self.read_four()
+        else:
+            data_bc95d8 = 0x31
+        self.sub_6cd5a0()
+        if self.fc >= 0xe:
+            self.sub_6cd7b0()
+        else:
+            raise NotImplementedError("65")
+        if self.fc > 5:
+            self.sub_7a0880()
+        
+        print(hex(self.seek))
+
+        # I was looking at 0x665885 (field_8 call of savedgamething)
+
+
+    ### END SVX
     def read_four(self):
         data = struct.unpack("<I", self.decomp[self.seek:self.seek+4])[0]
         self.seek += 4
@@ -161,7 +461,7 @@ class RcxReader:
         return data
     def read_two(self):
         data = struct.unpack("H", self.decomp[self.seek:self.seek+2])[0]
-        self.seek += 1
+        self.seek += 2
         return data
     def read_n(self,n):
         data = self.decomp[self.seek:self.seek+n]
@@ -235,7 +535,7 @@ class RcxReader:
         for i in range(numSyncDatas):
             first = self.read_one()
             self.read_one()
-            self.read_two()
+            self.read_two() #todo this was bugged i need to check
             if first & 0xf != 0x5:
                 self.read_four()
             self.read_four()
@@ -398,8 +698,12 @@ class Rec:
         return Update(updateNum, commands, selectedUnits, upTime), True
     
     def parse_header(self):
+        if self.reader.f_54:
+            raise NotImplementedError("Game does not start from beginning")
+        
         # read game settings (lastGameSettings.xml)
-        lastGameSettingsXml = self.reader.read_file()          
+        lastGameSettingsXml = self.reader.read_file()
+        
         self.xml = lastGameSettingsXml.decode("utf-16")
 
         # read map script (recordGameRandomMap.xs)
@@ -725,19 +1029,19 @@ def analyze_group(folderpath, is_ee=True):
                             else:
                                 god_losses[losing_civ] = 1
                 
-                if str(winning_team) in duplicate_test:
-                    losers = duplicate_test[str(winning_team)]
+                # if str(winning_team) in duplicate_test:
+                #     losers = duplicate_test[str(winning_team)]
                     
-                    for loser in losers:
-                        losing_team_str = loser[0]
-                        lose_file = loser[1]
-                        # print(str(losing_team), losing_team_str + " A ")
-                        if str(losing_team) == losing_team_str:
-                            print("Duplicate game: " + lose_file + " == " + file)
-                            continue
-                    losers.append([str(losing_team), file])
-                else:
-                    duplicate_test[str(winning_team)] = [[str(losing_team),file]]
+                #     for loser in losers:
+                #         losing_team_str = loser[0]
+                #         lose_file = loser[1]
+                #         # print(str(losing_team), losing_team_str + " A ")
+                #         if str(losing_team) == losing_team_str:
+                #             print("Duplicate game: " + lose_file + " == " + file)
+                #             continue
+                #     losers.append([str(losing_team), file])
+                # else:
+                #     duplicate_test[str(winning_team)] = [[str(losing_team),file]]
                 # print(str(winning_team), str(losing_team))
                     
                 # print(winning_team,"beat", losing_team)
@@ -762,8 +1066,8 @@ def analyze_group(folderpath, is_ee=True):
             losses = god_losses[god]
         total = wins + losses
         if total > 0:
-            percent_wins = int(wins/total * 100)
-            print(f"{god} won {percent_wins}% out of {total} games")
+            percent_wins = round(wins/total * 100)
+            print(f"{god} won {percent_wins}% out of {total} games. They went {wins}-{losses}")
     print(errors)
     num_games = sum([god_wins[x] for x in ["Zeus", "Poseidon", "Hades", "Isis", "Ra", "Set", "Odin", "Thor", "Loki", "Kronos", "Oranos", "Gaia"]])
     num_games2 = sum([god_losses[x] for x in ["Zeus", "Poseidon", "Hades", "Isis", "Ra", "Set", "Odin", "Thor", "Loki", "Kronos", "Oranos", "Gaia"]])
@@ -771,14 +1075,15 @@ def analyze_group(folderpath, is_ee=True):
 
 def main():
     # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"son_of.rcx",is_ee=False) # this is the player disconnect at end
-    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2020.10.20 014718.rcx") # this is the player disconnect at end
+    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.19 224842.rcx") # starts from middle
+    # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.17 144035.rcx")
     # rec = Rec("/mnt/c/Users/stnevans/Downloads/megardm/momo_vs_kvoth_2.rcx", is_ee=False)
-    # rec.parse(print_progress=True)
-    # rec.analyze_updates(print_info=True)
-    # rec.display_by_teams()
-    # rec.print_winner()
-    # print("Game time " + rec.game_time_formatted())
-    analyze_group("/mnt/c/Users/stnevans/Downloads/megardm", is_ee=False)
+    rec.parse(print_progress=True)
+    rec.analyze_updates(print_info=True)
+    rec.display_by_teams()
+    rec.print_winner()
+    print("Game time " + rec.game_time_formatted())
+    # analyze_group("/mnt/c/Users/stnevans/Downloads/megardm", is_ee=False)
     # analyze_group("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/megardm")
     # analyze_group("/mnt/c/Program Files (x86)/Microsoft Games/Age of Mythology/savegame/megardm", is_ee=False)
     # analyze_group(AOM_PATH+os.sep+"savegame/")
