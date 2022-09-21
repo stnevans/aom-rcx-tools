@@ -299,8 +299,8 @@ class BuildCommand(Command):
 
     def read(self, reader):
         super().read(reader)
-        self.d1 = reader.read_four()
-        self.d2 = reader.read_posVector()
+        self.protoUnitId = reader.read_four()
+        self.mBuildingPosition = reader.read_posVector()
 
         self.d3 = reader.read_posVector()
 

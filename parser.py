@@ -50,6 +50,38 @@ class CivManager:
 
     def get_nature_idx(self):
         return self.nature_idx
+
+class ProtoUnitDatabase:
+    def __init__(self):
+        proto_unit_path = AOM_PATH + os.sep + "data" + os.sep + "proto" + AOM_VERSION + ".xml"
+        tree = ET.parse(proto_unit_path)
+        self.tree = tree
+        self.units = tree.findall("unit")
+        # Language path for translating displayid
+        en_lang_path = AOM_PATH + os.sep + "Language" + os.sep + "en" + os.sep + "en-language.txt"
+        with open(en_lang_path, 'r', encoding="utf-16-le") as f:
+            lang_lines = f.readlines()
+        self.display_map = {}
+        for line in lang_lines:
+            tokens = line.split()
+            if len(tokens) > 1:
+                if tokens[0].isdigit():
+                    display_id = int(tokens[0])
+                    text = line[len(tokens[0]):].strip()
+                    # text = tokens[1]
+                    self.display_map[display_id] = text[1:-1]
+                
+    
+    def get_name(self, id):
+        for unit in self.units:
+            if int(unit.attrib["id"]) == id:
+                return unit.attrib["name"]
+
+    def get_displayname(self, id):
+        for unit in self.units:
+            if int(unit.attrib["id"]) == id:
+                display_id = int(unit.find("displaynameid").text)
+                return self.display_map[display_id]
 class TechTreeDatabase:
     # Tech tree uses an odd format for ids
     # It doesn't store the actual id. DBID is not used as the tech id
@@ -1186,7 +1218,8 @@ class Rec:
             print(input)
 
     def analyze_updates(self, print_info=False):
-        database = TechTreeDatabase()
+        ttdatabase = TechTreeDatabase()
+        pudatabase = ProtoUnitDatabase()
         time = 0
         for update in self.updates:
             commands = update.commands
@@ -1196,10 +1229,13 @@ class Rec:
                     if not self.players[command.resigningPlayerId].isObserver:
                         self.print_checked(str(self.players[command.resigningPlayerId]) + " has resigned", print_info)
                 elif type(command) == Commands.ResearchCommand:
-                    self.print_checked(str(self.players[command.playerId]) + " clicked " + database.get_tech(command.techId) + " at " + self.game_time_formatted(time), print_info)
+                    self.print_checked(str(self.players[command.playerId]) + " clicked " + ttdatabase.get_tech(command.techId)
+                     + " at " + self.game_time_formatted(time), print_info)
                 elif type(command) == Commands.PlayerDisconnectCommand:
                     self.print_checked(str(self.players[command.playerId]) + " has disconnected", print_info)
-                    
+                elif type(command) == Commands.BuildCommand:
+                    self.print_checked(str(self.players[command.playerId]) + " has built " + pudatabase.get_displayname(command.protoUnitId)
+                     + " at " + self.game_time_formatted(time), print_info)
                 # elif type(command) == Commands.WorkCommand:
                 #     print(command.playerId)
                 #     print(str(command.mUnitId))
@@ -1211,7 +1247,11 @@ class Rec:
 
                 else:
                     pass
-                    # print(command, self.game_time_formatted(time))
+                    # if time > 930000 and time < 945000:
+                    #     if command.playerId == 2:
+                    #         print(command, self.game_time_formatted(time), self.players[command.playerId])
+                    #         if type(command) == Commands.BuildCommand:
+                    #             print(pudatabase.get_displayname(command.protoUnitId))
             time += update.time
 
     def game_time_formatted(self, ms=None):
@@ -1332,9 +1372,10 @@ def analyze_group(folderpath, is_ee=True):
 
 def main():
     # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"son_of.rcx",is_ee=False) # this is the player disconnect at end
-    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.19 224842.rcx") # starts from middle
+    # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.19 224842.rcx") # starts from middle
     # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.17 144035.rcx")
     # rec = Rec("/mnt/c/Users/stnevans/Downloads/megardm/momo_vs_kvoth_2.rcx", is_ee=False)
+    rec = Rec("/mnt/c/Program Files (x86)/Microsoft Games/Age of Mythology/savegame/nube1978_cheat.rcx", is_ee=False)
     rec.parse(print_progress=True)
     rec.analyze_updates(print_info=True)
     rec.display_by_teams()
@@ -1344,6 +1385,7 @@ def main():
     # analyze_group("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/megardm")
     # analyze_group("/mnt/c/Program Files (x86)/Microsoft Games/Age of Mythology/savegame/megardm", is_ee=False)
     # analyze_group(AOM_PATH+os.sep+"savegame/")
+    
 
 if __name__ == '__main__':
     main()
