@@ -1,9 +1,5 @@
 
-from ctypes import c_ulong
-from multiprocessing.sharedctypes import Value
-from re import L
 import struct
-from xxlimited import new
 import zlib
 import xml.etree.ElementTree as ET
 import ntpath
@@ -68,7 +64,6 @@ class ProtoUnitDatabase:
                 if tokens[0].isdigit():
                     display_id = int(tokens[0])
                     text = line[len(tokens[0]):].strip()
-                    # text = tokens[1]
                     self.display_map[display_id] = text[1:-1]
                 
     
@@ -1039,6 +1034,7 @@ class Rec:
             elif player_type == PLAYER_TYPE_OBS:
                 num_observers += 1
 
+
         
         
         # Skip 1 + 4 + 4 + 4 bytes found after the civ,team info
@@ -1373,9 +1369,9 @@ def analyze_group(folderpath, is_ee=True):
 def main():
     # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"son_of.rcx",is_ee=False) # this is the player disconnect at end
     # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.19 224842.rcx") # starts from middle
-    # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.17 144035.rcx")
+    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.17 144035.rcx")
     # rec = Rec("/mnt/c/Users/stnevans/Downloads/megardm/momo_vs_kvoth_2.rcx", is_ee=False)
-    rec = Rec("/mnt/c/Program Files (x86)/Microsoft Games/Age of Mythology/savegame/nube1978_cheat.rcx", is_ee=False)
+    # rec = Rec("/mnt/c/Program Files (x86)/Microsoft Games/Age of Mythology/savegame/nube1978_cheat.rcx", is_ee=False)
     rec.parse(print_progress=True)
     rec.analyze_updates(print_info=True)
     rec.display_by_teams()
