@@ -1,5 +1,7 @@
 
+from ctypes import c_ulong
 from multiprocessing.sharedctypes import Value
+from re import L
 import struct
 from xxlimited import new
 import zlib
@@ -179,6 +181,13 @@ class RcxReader:
             raise ValueError("Bad tag read")
         self.read_four()
     
+    def read_2bytechecked_and4bytes(self, expected_tag):
+        real_tag = self.read_two()
+        if real_tag != expected_tag:
+            raise ValueError("Bad tag read")
+        return self.read_four()
+    
+
     ### START SVX
     def sub_512b30(self): # I am read 4 then n
         n = self.read_four()
@@ -410,6 +419,253 @@ class RcxReader:
             for i in range(trigger_group_count):
                 self.read_trigger_group()
 
+
+    def sub_7f0fa0(self): # reads a bunch of proto unit names
+        self.readExpectedTag(0x5450)
+        v418 = self.read_four()
+        v_40c = self.read_four()
+        for i in range(v_40c):
+            sz = self.read_four()
+            data = self.read_n(sz)
+            
+    def sub_988490(self): #reads stuff like LogicalTypeHouses\x00
+        self.readExpectedTag(0x4d54)
+        v418 = self.read_four()
+        v40_c = self.read_four()
+        for i in range(v40_c):
+            sz = self.read_four()
+            data = self.read_n(sz)
+    
+    def command_manager_readStuff(self):
+        self.readExpectedTag(0x324d)
+        f_4 = self.read_four()
+        v_8 = self.read_four()
+        for i in range(v_8):
+            data = self.read_one()
+            if data != 0:
+                v_10 = self.read_four() #cmd_type
+                cmd = Commands.Command.get_command(v_10)
+                cmd.read(self)
+
+        # There might be some if here. I'm ignoring it.
+        v_8 = self.read_four()
+        for i in range(v_8):
+            data = self.read_one()
+            if data != 0:
+                v_10 = self.read_four() #cmd_type
+                cmd = Commands.Command.get_command(v_10)
+                cmd.read(self)
+        a_8 = self.read_four()
+        if a_8 == 0x10:
+            v_10 = self.read_four()
+            if v_10 == 0xa:
+                for i in range(a_8):
+                    for j in range(v_10):
+                        v_18 = self.read_four()
+                        for k in range(v_18):
+                            self.read_four()
+                        self.read_four()
+            
+    def sub_5986b0(self, tag):
+        x = self.read_2bytechecked_and4bytes(tag)
+        n = self.read_four()
+        data = self.read_n(n)
+    def sub_5986f0(self, tag):
+        x = self.read_2bytechecked_and4bytes(tag)
+        n = self.read_four()
+        data = self.read_n(4 * n)
+
+    def sub_91c7b0(self):
+        self.readExpectedTag(0x5454)
+        v44c = self.read_four()
+        v434 = self.read_four()
+        for i in range(v434):
+            n = self.read_four()
+            self.read_n(n)
+            
+            v42c = self.read_four()
+            for i in range(v42c):
+                n = self.read_four()
+                self.read_n(n)
+    def sub_91cb50(self):
+        self.readExpectedTag(0x4957)
+        v24 = self.read_four()
+        v18 = self.read_four()
+        for i in range(v18):
+            self.sub_598220()
+    def sub_598220(self):
+        v8 = self.read_four()
+        n = self.read_four()
+        self.read_n(n)
+
+    def sub_7ea7a0(self):
+        self.readExpectedTag(0x5451)
+        v10 = self.read_four()
+        a2 = self.read_four()
+        for i in range(a2):
+            vc = self.read_four()
+            v8 = self.read_four()
+
+    def bterrain_readStuff(self):
+        self.readExpectedTag(0x3354)
+        v1c = self.read_four()
+        self.sub_91c7b0()
+        f_8 = self.read_four()
+        f_c = self.read_four()
+        f_10 = f_8 + 1
+        f_14 = f_c + 1
+        f_18 = self.read_four()
+        f_24 = self.read_four()
+
+        self.sub_5986b0(0x5454)
+        self.sub_5986b0(0x5354)
+
+        if v1c <= 0:
+            raise NotImplementedError("V1c small")
+        self.sub_5986b0(0x4f54)
+        self.sub_5986f0(0x4357)
+        if v1c <= 2:
+            self.sub_5986b0(0x5457)
+            self.sub_5986b0(0x5357)
+            raise NotImplementedError("Needs test")
+        else:
+            self.sub_91cb50()
+            self.sub_5986b0(0x5457)
+        for i in range(f_10):
+            for j in range(f_14):
+                self.read_four()
+        for i in range(f_10):
+            for j in range(f_14):
+                self.read_four()
+        self.sub_5986f0(0x544d)
+        f_88 = self.read_four()
+        if v1c == 4:
+            self.sub_5986b0(0x5a54)
+        if v1c >= 6:
+            self.sub_7ea7a0()
+    def read_slg(self):
+        raise NotImplementedError("SLG")
+        self.readExpectedTag(0x374e)
+
+    def sub_6dd6b0(self):
+        pass#TODO
+    def bplayer_read_some_svx(self):
+        self.readExpectedTag(0x5042)
+        v1c = self.read_four()
+        playerId = self.read_four()
+        # print(hex(v1c))
+
+        if v1c >= 0x26:
+            n = self.read_four()
+            data = self.read_n(2 * n)
+            if v1c >= 0x39:
+                f_10 = self.read_four()
+        else:
+            raise NotImplementedError(" I am lazy")
+        if v1c >= 0x4d:
+            f_620 = self.read_one()
+            if v1c >= 0x4e:
+                v24 = self.read_four()
+                for i in range(v24):
+                    v30 = self.read_four()
+
+        playerTypeFlags = self.read_one()
+        if v1c >= 1:
+            f_18 = self.read_four()
+        culture = self.read_four()
+        civ = self.read_four()
+        age = self.read_four()
+        if v1c < 6:
+            v24 = self.read_four()
+            v24 = self.read_four()
+            v24 = self.read_four()
+        pop = self.read_four()
+        pop_cap = self.read_four()
+        f_3c = self.read_four()
+        if v1c >= 0x34:
+            f_40 = self.read_four()
+        if v1c < 0x24:
+            raise NotImplementedError("0069d442")
+        colors = self.read_four()
+        f_7c = self.read_four()
+        f_80 = self.read_four()
+        numSlgs = self.read_four()
+        # last known good
+        for i in range(numSlgs):
+            self.read_slg()
+        if v1c < 0x2c:
+            raise NotImplementedError("0069d650")
+        v24 = self.read_four()
+
+        for i in range(v24):
+            v18 = self.read_four()
+            n = self.read_four()
+            self.read_n(4 * n)
+
+        #0069d6df
+        v18 = min(self.read_four(), 0x10)
+        print(v18)
+        for i in range(v18):
+            rel_stuff = self.read_four()
+        
+        score = self.read_four()
+        teamScore = self.read_four()
+
+        self.sub_6dd6b0()
+
+
+        print(hex(self.seek), hex(v1c))
+
+        print(culture, civ, CivManager(True).gods[civ])
+    def player_read_some_svx(self):
+        self.bplayer_read_some_svx()
+
+    def world_readStuff(self):
+        self.readExpectedTag(0x314a)
+        v224 = self.read_four_s()
+        if v224 < 0x34:
+            raise ValueError("v224 < 0x34! wow!")
+        # World::readStuff_likeCommandsActions() 
+        self.skip(1210)
+
+        if v224 >= 0x67:
+            n = self.read_four()
+            self.read_n(2*n)
+        if v224 < 0x2f:
+            self.readExpectedTag(0x544d)
+        self.sub_7f0fa0()
+        if v224 >= 0x15:
+            self.sub_988490()
+        if v224 >= 0x16:
+            self.sub_988490()
+        if v224 >= 0x2c:
+            self.sub_988490()
+        if v224 < 0x14:
+            raise ValueError("< 14")
+        self.command_manager_readStuff()
+        v_249 = self.read_one()
+        if v_249 == 1:
+            if v224 < 0:
+                raise ValueError("Negative")
+            v230 = self.read_four()
+            if v230 != 1:
+                raise ValueError("Not one")
+        print(" Seek pre terrain " + hex(self.seek))
+        self.bterrain_readStuff()
+        if v224 < 0x2b:
+            raise ValueError("v224 < 2b! wow!")
+        f_3fc = self.read_four()
+        f_400 = self.read_four() 
+        v234 = self.read_four()
+        numPlayers = v234
+        print(numPlayers)
+        for i in range(numPlayers):
+            v229 = self.read_one()
+            if v229 != 0:
+                self.player_read_some_svx()
+        #0x67d664
+        
+
     def parse_svx(self):
         print("Parsing svx")
         # self.read_two()
@@ -445,6 +701,7 @@ class RcxReader:
         if self.fc > 5:
             self.sub_7a0880()
         
+        self.world_readStuff()
         print(hex(self.seek))
 
         # I was looking at 0x665885 (field_8 call of savedgamething)
