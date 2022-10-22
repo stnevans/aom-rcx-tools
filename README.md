@@ -1,7 +1,8 @@
 # Age of Mythology Recorded Game Manipulator
-This is a python library capable of extracting data from recorded Age of Mythology games. This library can determine the players of a game, how long the game lasted, and the winners of the game. This library also provides all commands that were created during the game. This could allow for more analysis on what strategies are effective. Currently it supports AoM:EE and AoT. 
+This is a python library to interact with Age of Mythology recorded game files. It can extract the data contained in recorded games or add an observer to an AoM:EE game. <br>
+Some data extracted includes the players of a game, the duration of a game, what commands were created during the game (i.e. player actions), and the winners of the game. This could faciliate statistical analysis (e.g. what is the winrate of a 4:16 up with Zeus on Medit vs a 4:30?). The parser supports both AoM:EE and AoT. <br>
+Adding an observer to a game allows a viewer to have fog of war that includes all teams. Adding an observer is implemented by adding a observer player who instantly resigns. This would normally take the game out of sync, so the recorded game is also modified to ignore sync information. While this works on AoM:EE, on AoT, playback seems to go out of sync after the ResignCommand is processed. 
 
-This repository also supports adding observers to AoM:EE recorded games to allow observer fog of war. This is implemented by adding a observer that instantly resigns. As processing this ResignCommand would take the game out of sync, the rec is also modified to ignore sync information. While this works on AoM:EE, on AoT, playback seems to go out of sync after the ResignCommand is processed. 
 
 ## Planned Improvements
 - Better AoT support
@@ -56,8 +57,7 @@ Oranos won 0% out of 1 games
 Gaia won 100% out of 2 games
 ```
 
-
-## Things to configure
+## Things to configure for parser
 At the top of parser.py these variables are used to find the aom files.
 
 `AOM_PATH = "/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/"`<br>
@@ -67,9 +67,9 @@ Another common AOM_PATH might be `C:\Program Files (x86)\Steam\steamapps\common\
 
 ## Known issues
 - If someone loses in a manner other than resigning we can't detect their loss
-- We can't detect if someone actually researched something or just clicked on it. Not sure if it's possible to do so at all.
+- We can't detect if someone actually researched something or just clicked on it. 
 - Recs that start from midway during a game are not supported.
 ## Todo
-- Verify games with observers work properly. As of now, I think the player names/civs may be incorrect. To be fair, the Aom:EE also has a bug where you start as the wrong player in (some?) recorded games with observers.
+- Verify games with observers work properly, especially AoT multiple observers. To be fair, the Aom:EE also has a bug where you start as the wrong player in (some?) recorded games with observers.
 - Make it so if you disconnect it counts as a loss or game not ended depending on state of other team.
 - Make techtree voobly compatible.
