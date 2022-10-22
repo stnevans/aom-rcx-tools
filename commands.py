@@ -1,6 +1,6 @@
 class Command:
     #mRecipients seems to be unitid of units that are processed by command
-
+    # field 34 maybe player ids
 
     def __init__(self):
         self.mRecipients = []
@@ -26,10 +26,12 @@ class Command:
             self.mRecipients.append(reader.read_four())
         
         self.waypointsLen = reader.read_four()
+        self.waypoints = []
         for i in range(self.waypointsLen):
-            reader.read_four()
-            reader.read_four()
-            reader.read_four()
+            x = reader.read_float()
+            y = reader.read_float()
+            z = reader.read_float()
+            self.waypoints.append((x,y,z))
 
         # read mFlags  
         mFlagsSize = reader.read_four()
