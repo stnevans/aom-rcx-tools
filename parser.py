@@ -163,6 +163,7 @@ class RcxReader:
             # TODO
             # AFAIK voobly puts a 25 here and ee puts a 26. Should be tested :)
             # Would let us automate is_ee which would be really nice
+            # Looks like yes. this is sync stuff
 
             for i in range(n):
                 self.read_four()
@@ -580,7 +581,6 @@ class RcxReader:
         self.readExpectedTag(0x5042)
         v1c = self.read_four()
         playerId = self.read_four()
-        # print(hex(v1c))
 
         if v1c >= 0x26:
             n = self.read_four()
@@ -739,6 +739,11 @@ class RcxReader:
         data = struct.unpack("<I", self.decomp[self.seek:self.seek+4])[0]
         self.seek += 4
         return data
+    def read_float(self):
+        data = struct.unpack("f", self.decomp[self.seek:self.seek+4])[0]
+        self.seek += 4
+        return data
+
     def read_one(self):
         data = struct.unpack("B", self.decomp[self.seek:self.seek+1])[0]
         self.seek += 1
@@ -768,7 +773,7 @@ class RcxReader:
             self.read_n(0xc)
             self.read_n(0xc)
         return
-
+    
     def get_update_time(self, loadFlags):
         if loadFlags & LOAD_FLAGS_TIME:
             up_time = self.read_one()
@@ -815,7 +820,6 @@ class RcxReader:
 
     def read_sync_update(self):
         numSyncDatas = self.read_four()
-
         for i in range(numSyncDatas):
             first = self.read_one()
             self.read_one()
@@ -825,8 +829,9 @@ class RcxReader:
             self.read_four()
             self.read_four()
         ar = self.read_four()
+
         for i in range(ar):
-            self.read_four()
+            sync_data = self.read_four()
     
     def read_posVector(self):
         return [self.read_four(), self.read_four(), self.read_four()]
@@ -846,6 +851,7 @@ class RcxReader:
     
     def read_file(self):
         totalSize = self.read_four()
+        print(f"Reading file of size {totalSize}")
         blockSize = self.read_four()
         if blockSize == 0:
             raise ValueError("Zero block size")
@@ -938,7 +944,7 @@ class Rec:
         self.reader.read_camera(loadFlags)
 
         upTime = self.reader.get_update_time(loadFlags)
-
+        
         # Read the commands
         numCommands = self.reader.read_num_commands(loadFlags)
         commands = [None] * numCommands
@@ -956,7 +962,6 @@ class Rec:
                 if cmd.playerId == self.controlledPlayer:
                     return Update(updateNum, commands, selectedUnits, upTime), False
 
-
         # Read the selected units
         if loadFlags & LOAD_FLAGS_SELECTED_UNITS:
             numUnits = self.reader.read_one()
@@ -965,15 +970,15 @@ class Rec:
                 selectedUnits[i] = self.reader.read_four()
         
         
-        # Haven't looked into what this is
-        # I *think* it's a bunch of unitIds used for something
-        smth = self.reader.read_one()
-        for i in range(smth):
-            self.reader.read_one()
-
+        # Looks like this is players affected. Not 100% sure, but it seems to fix obs stuff
+        playerAffCount = self.reader.read_one()
+        for i in range(playerAffCount):
+            pl = self.reader.read_one()
+            
         # byte read from header field_4c
 
         # Read sync info
+        self.reader.update = updateNum
         self.reader.get_sync(loadFlags)
 
         if self.reader.field_8 < 1:
@@ -1006,6 +1011,7 @@ class Rec:
             
             curPlayer = Player(playerCiv, playerTeam, i-1, self.civ_mgr, isObserver=playerTeam==-1)
             self.players.append(curPlayer)
+        print(numPlayers, playerCiv, playerTeam)
             
         # Match players we just read with players from Xml File
         # This lets us find attributes such as the player name
@@ -1043,14 +1049,16 @@ class Rec:
 
         # Read the difficulty, team nums
         self.difficulty = self.reader.read_four()
-        maybeTeamNums = self.reader.read_four()
+        maybeTeamNums = self.reader.read_four() 
         
         # I don't currently know if teamIds can descend. This lets us check for that
         lastTeamId = START_LAST_TEAM_ID
-
+        print("We have " + str(maybeTeamNums), numPlayers)
+        
         # For every player read some more info about them
         for i in range(maybeTeamNums):
             read_player = self.reader.read_one()
+            print("READ ", read_player)
             if read_player == 0:
                 continue
             self.reader.skip(4)
@@ -1100,7 +1108,6 @@ class Rec:
 
         for i in range(alsoNumPlayers):
             tester = self.reader.read_one()
-
             if tester == 0:
                 continue
             check_3f = self.reader.read_four_s()
@@ -1111,9 +1118,8 @@ class Rec:
 
             # sub_512b30
 
-            some = self.reader.read_four()
-            more = self.reader.read_n(2*some)
-
+            player_name_len = self.reader.read_four()
+            player_name_2 = self.reader.read_n(2*player_name_len)
             field_10 = self.reader.read_four()
             type_flags = self.reader.read_one()
 
@@ -1128,17 +1134,27 @@ class Rec:
                 if test2 > 0x10:
                     print("PL NUM ERR")
                     return
+                
                 if test2 > 0:
                     for j in range(test2):
                         rel = self.reader.read_four()
+                        # if i == 3:
+                        #     print(rel)
             colors = self.reader.read_four()
+            # if i == 3:
+            #     print(i, tester, check_3f, god_flags_idk_dude, god_flags_idk_dude2, maybe_stance)
+            #     print(player_name_2.decode("utf-16"))
+            #     print(field_10, type_flags, culture, civ)
+            #     print(field_18, field_4b4, field_4b8, colors)
+            #     print(test2)
 
         
     
 
     def parse(self, print_progress=False):
         self.parse_header()
-        
+        print("After header seek = ", hex(self.reader.seek))
+
         # Now we parse all the updates
         time = 0
         for updateNum in range(1,0x1000000):
@@ -1217,21 +1233,29 @@ class Rec:
         ttdatabase = TechTreeDatabase()
         pudatabase = ProtoUnitDatabase()
         time = 0
+        i = 0
         for update in self.updates:
             commands = update.commands
             for command in commands:
+                # if command.resigningPlayerId == 3:
+                #     print(command)
                 if type(command) == Commands.ResignCommand:
                     self.players[command.resigningPlayerId].resign(time)
-                    if not self.players[command.resigningPlayerId].isObserver:
-                        self.print_checked(str(self.players[command.resigningPlayerId]) + " has resigned", print_info)
+                    # if not self.players[command.resigningPlayerId].isObserver:
+                    self.print_checked(str(self.players[command.resigningPlayerId]) + " has resigned", print_info)
                 elif type(command) == Commands.ResearchCommand:
                     self.print_checked(str(self.players[command.playerId]) + " clicked " + ttdatabase.get_tech(command.techId)
                      + " at " + self.game_time_formatted(time), print_info)
                 elif type(command) == Commands.PlayerDisconnectCommand:
                     self.print_checked(str(self.players[command.playerId]) + " has disconnected", print_info)
                 elif type(command) == Commands.BuildCommand:
-                    self.print_checked(str(self.players[command.playerId]) + " has built " + pudatabase.get_displayname(command.protoUnitId)
-                     + " at " + self.game_time_formatted(time), print_info)
+                    if False:
+                        self.print_checked(str(self.players[command.playerId]) + " has built " + pudatabase.get_displayname(command.protoUnitId)
+                        + " at " + self.game_time_formatted(time), print_info)
+                elif type(command) == Commands.TrainCommand:
+                    if False:
+                        self.print_checked(str(self.players[command.playerId]) + " tried training " + pudatabase.get_displayname(command.mProtoUnitId)
+                        + " at " + self.game_time_formatted(time), print_info)
                 # elif type(command) == Commands.WorkCommand:
                 #     print(command.playerId)
                 #     print(str(command.mUnitId))
@@ -1249,6 +1273,7 @@ class Rec:
                     #         if type(command) == Commands.BuildCommand:
                     #             print(pudatabase.get_displayname(command.protoUnitId))
             time += update.time
+            i += 1
 
     def game_time_formatted(self, ms=None):
         if ms is None:
@@ -1370,8 +1395,25 @@ def main():
     # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"son_of.rcx",is_ee=False) # this is the player disconnect at end
     # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.19 224842.rcx") # starts from middle
     rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.17 144035.rcx")
-    # rec = Rec("/mnt/c/Users/stnevans/Downloads/megardm/momo_vs_kvoth_2.rcx", is_ee=False)
+    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"multiple_obs_in_1v1_wrong_player.rcx")
+
+    
+    # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"BuyMerge_vs_White.rcx")
+    rec = Rec("/mnt/c/Program Files (x86)/Microsoft Games/Age of Mythology/savegame/momo_vs_kvoth_1_.rcx", is_ee=False)
     # rec = Rec("/mnt/c/Program Files (x86)/Microsoft Games/Age of Mythology/savegame/nube1978_cheat.rcx", is_ee=False)
+    rec = Rec("rcxs/test.rcx", is_ee=False)
+    # rec = Rec("rcxs/3ppl.rcx", is_ee=True)
+    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.24 015931.rcx")
+    # rec = Rec("rcxs/nube1978_cheat.rcx", is_ee=False)
+
+    # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.21 214328.rcx", is_ee=True) # real obs
+
+
+    # rec = Rec("3_ppl_1v1_obs_is_titled_as_player_in_program.rcx")
+    # rec = Rec()    
+    rec = Rec("rcxs/nube1978_cheat_obs.rcx", is_ee=False)
+    # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"BuyMerge_vs_White.rcx")
+
     rec.parse(print_progress=True)
     rec.analyze_updates(print_info=True)
     rec.display_by_teams()
@@ -1380,6 +1422,7 @@ def main():
     # analyze_group("/mnt/c/Users/stnevans/Downloads/megardm", is_ee=False)
     # analyze_group("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/megardm")
     # analyze_group("/mnt/c/Program Files (x86)/Microsoft Games/Age of Mythology/savegame/megardm", is_ee=False)
+
     # analyze_group(AOM_PATH+os.sep+"savegame/")
     
 
