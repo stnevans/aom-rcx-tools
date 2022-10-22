@@ -6,8 +6,6 @@ import xml.etree.ElementTree as ET
 
 import commands as Commands
 
-# from lxml import etree as ET
-# from sympy import pretty_print
 LOAD_FLAGS_TIME = 0x1
 LOAD_FLAGS_CAMERA1 = 0x2
 LOAD_FLAGS_CAMERA2 = 0x4
@@ -18,11 +16,9 @@ LOAD_FLAGS_COMMANDS_MANY = 0x40
 LOAD_FLAGS_SELECTED_UNITS = 0x80
 
 
-OBS_NAME = "Stu"
-
 class ObsAdd:
     
-    def __init__(self, filepath, is_ee):
+    def __init__(self, filepath, is_ee, observer_name):
         with open(filepath, "rb") as f:
             all = f.read()
         
@@ -57,6 +53,7 @@ class ObsAdd:
         uncompressed_seek = struct.unpack("<I", last_sixteen[8:12])[0]
 
         self.is_ee = is_ee
+        self.observer_name = observer_name
 
     def skip(self, n):
         self.seek += n
@@ -342,7 +339,7 @@ class ObsAdd:
 
         obs.attrib["ControlledPlayer"] = str(newRealNumPlayers)
         name_ele = ET.SubElement(obs, "Name")
-        name_ele.text = OBS_NAME
+        name_ele.text = self.observer_name
 
 
         rating_ele = ET.SubElement(obs, "Rating")
@@ -456,9 +453,9 @@ class ObsAdd:
         self.write_one(0) #flags 2
         self.write_four(0) # stance
         # name = "Stu was here".encode("utf-16")[2:]
-        name = OBS_NAME.encode("utf-16")[2:]
+        name = self.observer_name.encode("utf-16")[2:]
         self.write_four(len(name)//2)
-        print("Adding observer(" + str(OBS_NAME) +")")
+        print("Adding observer \"" + str(self.observer_name) +"\"")
         self.write_data(name)
         self.write_four(0)
         self.write_one(4)
@@ -521,30 +518,19 @@ class ObsAdd:
             footer_data += self.footer[len(footer_data):-8]
             
             new_footer = footer_data + loc_bytes + self.footer[-4:]
-            
 
-            # print(self.footer[:-8])
-            # for i in range(0x1a):
-            #     print((self.footer[4+i*4:8+i*4]))
-            # f.write(struct.pack("<I", (0)))
             f.write(new_footer)
         print("Saved to " + self.outpath)
 
-        # Sooooo it's actually important for the last 16 to point properly.
         
-        # with open(self.outpath, 'rb') as f:
-        #     all = f.read()
-        # size = struct.unpack("<I", all[4:8])[0]
-        # rest = all[8:]
-        # decomp = zlib.decompress(rest)
-        # print(len(decomp), size)
 # ObsAdd("rcxs/momo_vs_kvoth_1_.rcx", is_ee=False).add_obs()
 # ObsAdd("rcxs/3ppl.rcx", is_ee=True).add_obs()
 
 parser = argparse.ArgumentParser()
 parser.add_argument('filename')
+parser.add_argument('observer_name', default="Observer(Stu)", nargs="?")
 args = parser.parse_args()
-ObsAdd(args.filename, is_ee=True).add_obs()
+ObsAdd(args.filename, is_ee=True, observer_name=args.observer_name).add_obs()
 
 AOM_PATH = "/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/"
 # ObsAdd(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2020.11.15 190728.rcx", is_ee=True).add_obs()
