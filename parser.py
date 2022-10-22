@@ -188,7 +188,6 @@ class RcxReader:
         if not self.f_54:
             v3d0 = self.read_four()
 
-        print(hex(self.seek))
         # This seek is so late because there is a ton of stuff read into global config vars
         # This happens due to World::readStuff_likeCommandsActions (0x67fca0)
         # AFAIK, none of the config stuff seems relevant for the case of rcx's
@@ -851,7 +850,7 @@ class RcxReader:
     
     def read_file(self):
         totalSize = self.read_four()
-        print(f"Reading file of size {totalSize}")
+        # print(f"Reading file of size {totalSize}")
         blockSize = self.read_four()
         if blockSize == 0:
             raise ValueError("Zero block size")
@@ -1011,7 +1010,7 @@ class Rec:
             
             curPlayer = Player(playerCiv, playerTeam, i-1, self.civ_mgr, isObserver=playerTeam==-1)
             self.players.append(curPlayer)
-        print(numPlayers, playerCiv, playerTeam)
+        # print(numPlayers, playerCiv, playerTeam)
             
         # Match players we just read with players from Xml File
         # This lets us find attributes such as the player name
@@ -1053,12 +1052,10 @@ class Rec:
         
         # I don't currently know if teamIds can descend. This lets us check for that
         lastTeamId = START_LAST_TEAM_ID
-        print("We have " + str(maybeTeamNums), numPlayers)
         
         # For every player read some more info about them
         for i in range(maybeTeamNums):
             read_player = self.reader.read_one()
-            print("READ ", read_player)
             if read_player == 0:
                 continue
             self.reader.skip(4)
