@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 import ntpath
 import os
 import sys
+import argparse
 
 import commands as Commands
 
@@ -105,7 +106,7 @@ class RcxReader:
     seek = 0
     is_ee = True
 
-    def __init__(self, filepath, is_ee):
+    def __init__(self, filepath):
         # Read the data
         with open(filepath, "rb") as f:
             all = f.read()
@@ -164,6 +165,9 @@ class RcxReader:
             # AFAIK voobly puts a 25 here and ee puts a 26. Should be tested :)
             # Would let us automate is_ee which would be really nice
             # Looks like yes. this is sync stuff
+            self.is_ee = (n==26)
+            if n != 26:
+                print("Detected AoT game (n=" + str(n) + ")")
 
             for i in range(n):
                 self.read_four()
@@ -196,9 +200,8 @@ class RcxReader:
         # World::readStuff_likeCommandsActions consumes 1210
         if self.f_54:
             self.parse_svx()
-        self.seek = 1474 if is_ee else 1466 # non ee should be checked
+        self.seek = 1474 if self.is_ee else 1466 # non ee should be checked
         
-        self.is_ee = is_ee
         self.field_8 = 3 # This actually comes from some data. Should probably fix this at some point
 
 
@@ -732,8 +735,10 @@ class RcxReader:
 
         # I was looking at 0x665885 (field_8 call of savedgamething)
 
-
     ### END SVX
+
+
+
     def read_four(self):
         data = struct.unpack("<I", self.decomp[self.seek:self.seek+4])[0]
         self.seek += 4
@@ -921,7 +926,7 @@ class Update:
         self.num = num
 
 class Rec:
-    def __init__(self, filepath, is_ee=True):
+    def __init__(self, filepath):
         self.players = []
         self.updates = []
         self.teams = []
@@ -929,9 +934,9 @@ class Rec:
         self.filepath = filepath
 
         # Create our RcxReader
-        self.reader = RcxReader(filepath, is_ee)
-        self.civ_mgr = CivManager(is_ee)
-        self.is_ee = is_ee
+        self.reader = RcxReader(filepath)
+        self.is_ee = self.reader.is_ee
+        self.civ_mgr = CivManager(self.is_ee)
         
         
     def parse_update(self, updateNum):
@@ -1033,12 +1038,11 @@ class Rec:
             name = player_ele.find("Name").text
             if idx == self.controlledPlayer:
                 self.controlledPlayer -= num_observers
-            if player_type == PLAYER_TYPE_HUMAN: ## todo or 1...actually idk could pollute stats
+            if player_type == PLAYER_TYPE_HUMAN or PLAYER_TYPE_COMP: ## This could pollute stats if not accounted for
                 if name is not None:
                     player.setName(name)
             elif player_type == PLAYER_TYPE_OBS:
                 num_observers += 1
-
 
         
         
@@ -1150,7 +1154,7 @@ class Rec:
 
     def parse(self, print_progress=False):
         self.parse_header()
-        print("After header seek = ", hex(self.reader.seek))
+        # print("After header seek = ", hex(self.reader.seek))
 
         # Now we parse all the updates
         time = 0
@@ -1389,33 +1393,22 @@ def analyze_group(folderpath, is_ee=True):
     print(num_games2, num_games)
 
 def main():
-    # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"son_of.rcx",is_ee=False) # this is the player disconnect at end
-    # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.19 224842.rcx") # starts from middle
-    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.17 144035.rcx")
-    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"multiple_obs_in_1v1_wrong_player.rcx")
-
-    
-    # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"BuyMerge_vs_White.rcx")
-    rec = Rec("/mnt/c/Program Files (x86)/Microsoft Games/Age of Mythology/savegame/momo_vs_kvoth_1_.rcx", is_ee=False)
-    # rec = Rec("/mnt/c/Program Files (x86)/Microsoft Games/Age of Mythology/savegame/nube1978_cheat.rcx", is_ee=False)
-    rec = Rec("rcxs/test.rcx", is_ee=False)
-    # rec = Rec("rcxs/3ppl.rcx", is_ee=True)
-    rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.24 015931.rcx")
-    # rec = Rec("rcxs/nube1978_cheat.rcx", is_ee=False)
-
-    # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2022.09.21 214328.rcx", is_ee=True) # real obs
+    parser = argparse.ArgumentParser()
+    parser.add_argument('filename', nargs="?")
+    args = parser.parse_args()
+    if args.filename is not None:
+        rec = Rec(args.filename)
+        rec.parse(print_progress=True)
+        rec.analyze_updates(print_info=True)
+        rec.display_by_teams()
+        rec.print_winner()
+        print("Game time " + rec.game_time_formatted())
 
 
-    # rec = Rec("3_ppl_1v1_obs_is_titled_as_player_in_program.rcx")
-    # rec = Rec()    
-    rec = Rec("rcxs/nube1978_cheat_obs.rcx", is_ee=False)
-    # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"BuyMerge_vs_White.rcx")
-
-    rec.parse(print_progress=True)
-    rec.analyze_updates(print_info=True)
-    rec.display_by_teams()
-    rec.print_winner()
-    print("Game time " + rec.game_time_formatted())
+    # # rec = Rec("3_ppl_1v1_obs_is_titled_as_player_in_program.rcx")
+    # # rec = Rec()    
+    # rec = Rec("rcxs/nube1978_cheat_obs.rcx", is_ee=False)
+    # # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"BuyMerge_vs_White.rcx")
     # analyze_group("/mnt/c/Users/stnevans/Downloads/megardm", is_ee=False)
     # analyze_group("/mnt/c/Users/stnevans/Documents/My Games/Age of Mythology/Savegame/megardm")
     # analyze_group("/mnt/c/Program Files (x86)/Microsoft Games/Age of Mythology/savegame/megardm", is_ee=False)
