@@ -361,8 +361,8 @@ class ObsAdd:
 
         new_root = ET.tostring(root, encoding= "utf-16", xml_declaration=False)
         
-        with open("rcxs/lastGame.xml", 'wb') as f:
-            f.write(new_root)
+        # with open("rcxs/lastGame.xml", 'wb') as f:
+        #     f.write(new_root)
         # testing = b"A"*0x1000
 
         self.write_file(new_root)
