@@ -1,8 +1,9 @@
-from bz2 import compress
 import zlib
 import struct
 import os
+import argparse
 import xml.etree.ElementTree as ET
+
 import commands as Commands
 
 # from lxml import etree as ET
@@ -16,7 +17,6 @@ LOAD_FLAGS_COMMANDS_FEW = 0x20
 LOAD_FLAGS_COMMANDS_MANY = 0x40
 LOAD_FLAGS_SELECTED_UNITS = 0x80
 
-AOM_PATH = "/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/"
 
 OBS_NAME = "Stu"
 
@@ -541,7 +541,10 @@ class ObsAdd:
 # ObsAdd("rcxs/momo_vs_kvoth_1_.rcx", is_ee=False).add_obs()
 # ObsAdd("rcxs/3ppl.rcx", is_ee=True).add_obs()
 
-ObsAdd("rcxs/nube1978_cheat.rcx", is_ee=False).add_obs()
-# ObsAdd("rcxs/test.rcx", is_ee=False).add_obs()
+parser = argparse.ArgumentParser()
+parser.add_argument('filename')
+args = parser.parse_args()
+ObsAdd(args.filename, is_ee=True).add_obs()
 
-ObsAdd(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2020.11.15 190728.rcx", is_ee=True).add_obs()
+AOM_PATH = "/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/"
+# ObsAdd(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2020.11.15 190728.rcx", is_ee=True).add_obs()
