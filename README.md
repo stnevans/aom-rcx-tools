@@ -1,11 +1,20 @@
-# Age of Mythology Recorded Game Analyzer
-This is a python library capable of extracting data from recorded Age of Mythology games. This library can determine the players of a game, how long the game lasted, and the winners of the game. This library also provides all commands that were created during the game. This could allow for more analysis on what strategies are effective. Currently it supports Aom:EE and AoT. 
+# Age of Mythology Recorded Game Manipulator
+This is a python library capable of extracting data from recorded Age of Mythology games. This library can determine the players of a game, how long the game lasted, and the winners of the game. This library also provides all commands that were created during the game. This could allow for more analysis on what strategies are effective. Currently it supports AoM:EE and AoT. 
+
+This repository also supports adding observers to AoM:EE recorded games to allow observer fog of war. This is implemented by adding a observer that instantly resigns. As processing this ResignCommand would take the game out of sync, the rec is also modified to ignore sync information. On AoT, playback seems to be out of sync whereas on AoM:EE, it seems to work.
 
 ## Planned Improvements
 - Add more fields to commands. Currently many commands are parsed but their fields either ignored or no information on the contents of those fields is given. This will primarily require more reverse engineering.
 - Add builtin parsing for commands that have fields such as protoUnitIds. Automatically translate that into the name if wanted.
 - Reverse engineer exactly how the selected units are used and add that once understood.
 - Longterm goal: Support svx files. No idea what the file format there is.
+
+## Example of adding an observer
+```
+$ python3 obs_add.py 'Replay v2.8 @2020.11.15 190728.rcx'
+Adding observer "Observer(Stu)"
+Saved to Replay v2.8 @2020.11.15 190728_obs.rcx
+```
 
 ## Example usage:
 ```
@@ -53,6 +62,8 @@ Kronos won 0% out of 1 games
 Oranos won 0% out of 1 games
 Gaia won 100% out of 2 games
 ```
+
+
 
 ## Things to configure
 At the top of parser.py these variables are used to find the aom files.
