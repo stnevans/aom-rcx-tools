@@ -452,7 +452,6 @@ class ObsAdd:
         self.write_one(0) # flags 1
         self.write_one(0) #flags 2
         self.write_four(0) # stance
-        # name = "Stu was here".encode("utf-16")[2:]
         name = self.observer_name.encode("utf-16")[2:]
         self.write_four(len(name)//2)
         print("Adding observer \"" + str(self.observer_name) +"\"")
@@ -526,11 +525,14 @@ class ObsAdd:
 # ObsAdd("rcxs/momo_vs_kvoth_1_.rcx", is_ee=False).add_obs()
 # ObsAdd("rcxs/3ppl.rcx", is_ee=True).add_obs()
 
-parser = argparse.ArgumentParser()
-parser.add_argument('filename')
-parser.add_argument('observer_name', default="Observer(Stu)", nargs="?")
-args = parser.parse_args()
-ObsAdd(args.filename, is_ee=True, observer_name=args.observer_name).add_obs()
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('filename')
+    parser.add_argument('observer_name', default="Observer(Stu)", nargs="?")
+    args = parser.parse_args()
+    ObsAdd(args.filename, is_ee=True, observer_name=args.observer_name).add_obs()
 
+if __name__ == "__main__":
+    main()
 AOM_PATH = "/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/"
 # ObsAdd(AOM_PATH+os.sep+"savegame"+os.sep+"Replay v2.8 @2020.11.15 190728.rcx", is_ee=True).add_obs()

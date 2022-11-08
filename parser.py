@@ -862,11 +862,11 @@ class RcxReader:
         return self.read_section(totalSize, blockSize)
 
 class Player:
-    def __init__(self, civ, team, idx, civ_mgr, isObserver=False):
+    def __init__(self, civ, team, idx, civ_mgr, isObserver=False, name=""):
         self.civ = civ
         self.team = team
         self.idx = idx
-        self.name = ""
+        self.name = name
         self.isResigned = False
         self.isObserver = isObserver
         self.civ_mgr = civ_mgr
@@ -930,7 +930,7 @@ class Rec:
         self.players = []
         self.updates = []
         self.teams = []
-
+        self.has_comp = False
         self.filepath = filepath
 
         # Create our RcxReader
@@ -1021,6 +1021,7 @@ class Rec:
         # This lets us find attributes such as the player name
         num_observers = 0
         root = ET.fromstring(self.xml)
+        self.map = root.findall("Filename")[0].text
 
         # Read controlled player
         self.controlledPlayer = int(root.findall("CurrentPlayer")[0].text)
@@ -1038,6 +1039,8 @@ class Rec:
             name = player_ele.find("Name").text
             if idx == self.controlledPlayer:
                 self.controlledPlayer -= num_observers
+            if player_type == PLAYER_TYPE_COMP:
+                self.has_comp = True
             if player_type == PLAYER_TYPE_HUMAN or PLAYER_TYPE_COMP: ## This could pollute stats if not accounted for
                 if name is not None:
                     player.setName(name)
@@ -1082,21 +1085,7 @@ class Rec:
                 data = self.reader.read_four()
             lastTeamId = teamId
         
-        # Add players to their team
-        for player in self.players:
-            #TODO
-            # Check what's going on here. I think this is correct, but some of the above code may be wrong
-            # I still am not sure exactly how the game handles observers
-            # Maybe easiest thing to do is skip processing players
-            if player.team == -1: 
-                continue
-            # voobly multiple observer stuff
-            if not self.is_ee:
-                if player.team == lastTeamId and num_observers >= 1 and maybeTeamNums > 3:
-                    player.isObserver = True
-            if player.civ != self.civ_mgr.get_nature_idx():
-                if player.name != "":
-                    self.teams[player.team-1].addPlayer(player)
+
             
         # We now read more info about the players.
         # Not exactly sure what all this is
@@ -1107,6 +1096,7 @@ class Rec:
         if alsoNumPlayers != numPlayers:
             raise ValueError("ERROR. alsoNumPlayers doesn't match")
 
+        players2 = []
         for i in range(alsoNumPlayers):
             tester = self.reader.read_one()
             if tester == 0:
@@ -1126,8 +1116,9 @@ class Rec:
 
             culture = self.reader.read_four()
             civ = self.reader.read_four()
-
-            field_18 = self.reader.read_four() #seems to be team again
+            field_18 = self.reader.read_four_s() #seems to be team again
+            players2.append(Player(civ, field_18, i, self.civ_mgr, isObserver=field_18==-1, name=player_name_2.decode("utf-16")))
+            lastTeamId = field_18
             field_4b4 = self.reader.read_four()
             field_4b8 = self.reader.read_four()
             if check_3f >= 0x3f:
@@ -1148,17 +1139,32 @@ class Rec:
             #     print(field_10, type_flags, culture, civ)
             #     print(field_18, field_4b4, field_4b8, colors)
             #     print(test2)
+        self.players = players2
 
-        
+        # Add players to their team
+
+        for player in self.players:
+                #TODO
+            # Check what's going on here. I think this is correct, but some of the above code may be wrong
+            # I still am not sure exactly how the game handles observers
+            # Maybe easiest thing to do is skip processing players
+            if player.team == -1: 
+                continue
+            # voobly multiple observer stuff
+            if not self.is_ee:
+                if player.team == lastTeamId and num_observers >= 1 and maybeTeamNums > 3:
+                    player.isObserver = True
+            if player.civ != self.civ_mgr.get_nature_idx():
+                if player.name != "":
+                    self.teams[player.team-1].addPlayer(player)
     
 
     def parse(self, print_progress=False):
         self.parse_header()
-        # print("After header seek = ", hex(self.reader.seek))
-
+        
         # Now we parse all the updates
         time = 0
-        for updateNum in range(1,0x1000000):
+        for updateNum in range(1,0x1000001):
             pre = self.reader.seek
             try:
                 update, keep_read = self.parse_update(updateNum)
@@ -1190,6 +1196,7 @@ class Rec:
         # now back to compressed at same seek
 
     def display_by_teams(self):
+        print(self.map)
         for team in self.teams:
             print(team)
 
@@ -1210,7 +1217,7 @@ class Rec:
                 team = teams[player.team]
                 team.append(player)
         
-        ret = ""
+        ret = os.path.basename(self.filepath) + "\n\t" + self.map +"\n"
         for team in teams:
             if len(team) > 0:
                 ret += ("\tTeam " + str(team[0].team)+": ")
@@ -1319,10 +1326,10 @@ def analyze_group(folderpath, is_ee=True):
         if file.endswith(".rcx"):
             try:
                 print(file)
-                rec = Rec(folderpath + file, is_ee=is_ee)
+                rec = Rec(folderpath + file)
                 rec.parse()
                 rec.analyze_updates()
-                # rec.display_by_teams()
+                rec.display_by_teams()
                 # rec.print_winner()
                 
                 winning_team = rec.get_winning_team()
@@ -1392,10 +1399,24 @@ def analyze_group(folderpath, is_ee=True):
     num_games2 = sum([god_losses[x] for x in ["Zeus", "Poseidon", "Hades", "Isis", "Ra", "Set", "Odin", "Thor", "Loki", "Kronos", "Oranos", "Gaia"]])
     print(num_games2, num_games)
 
+def parse_many_recs(base):
+    import traceback
+    for file in os.listdir(base):
+        if file.endswith(".rcx"):
+            try:
+                rec = Rec(base + file)
+                rec.parse_header()
+                # rec.display_by_teams()
+                print(rec.get_display_string())
+            except Exception as e:
+                print(traceback.format_exc())
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('filename', nargs="?")
     args = parser.parse_args()
+    # analyze_group("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame")
     if args.filename is not None:
         rec = Rec(args.filename)
         rec.parse(print_progress=True)
@@ -1403,6 +1424,8 @@ def main():
         rec.display_by_teams()
         rec.print_winner()
         print("Game time " + rec.game_time_formatted())
+    else:
+        parse_many_recs("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/")
 
 
     # # rec = Rec("3_ppl_1v1_obs_is_titled_as_player_in_program.rcx")
@@ -1414,6 +1437,7 @@ def main():
     # analyze_group("/mnt/c/Program Files (x86)/Microsoft Games/Age of Mythology/savegame/megardm", is_ee=False)
 
     # analyze_group(AOM_PATH+os.sep+"savegame/")
+    
     
 
 if __name__ == '__main__':
