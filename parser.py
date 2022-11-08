@@ -1,5 +1,6 @@
 
 import struct
+from termios import OPOST
 import zlib
 import xml.etree.ElementTree as ET
 import ntpath
@@ -913,6 +914,18 @@ class Team:
             if not player.isObserver:
                 return False
         return True 
+    
+    def has_player(self, player_name):
+        for player in self.players:
+            if player.name == player_name:
+                return True
+        return False
+
+    def get_player(self, player_name):
+        for player in self.players:
+            if player.name == player_name:
+                return player
+        return None
 
 
 class Update:
@@ -1140,7 +1153,7 @@ class Rec:
             #     print(field_18, field_4b4, field_4b8, colors)
             #     print(test2)
         self.players = players2
-
+        
         # Add players to their team
 
         for player in self.players:
@@ -1148,7 +1161,7 @@ class Rec:
             # Check what's going on here. I think this is correct, but some of the above code may be wrong
             # I still am not sure exactly how the game handles observers
             # Maybe easiest thing to do is skip processing players
-            if player.team == -1: 
+            if player.team == -1 or player.team==0: 
                 continue
             # voobly multiple observer stuff
             if not self.is_ee:
@@ -1399,18 +1412,76 @@ def analyze_group(folderpath, is_ee=True):
     num_games2 = sum([god_losses[x] for x in ["Zeus", "Poseidon", "Hades", "Isis", "Ra", "Set", "Odin", "Thor", "Loki", "Kronos", "Oranos", "Gaia"]])
     print(num_games2, num_games)
 
-def parse_many_recs(base):
-    import traceback
+def parse_all_headers(base):
+    recs = []
     for file in os.listdir(base):
         if file.endswith(".rcx"):
             try:
                 rec = Rec(base + file)
                 rec.parse_header()
-                # rec.display_by_teams()
-                print(rec.get_display_string())
-            except Exception as e:
-                print(traceback.format_exc())
+                recs.append(rec)
+            except:
+                pass
+    return recs
 
+def filter_by_player(recs, player_name, god="*", opposing_player_name="*", opposing_god="*"):
+    ret_recs = []
+    for rec in recs:
+        found_player = False
+        for team in rec.teams:
+            if team.is_observing_team():
+                continue
+            if team.has_player(player_name):
+                if god == "*" or rec.civ_mgr.get_god(team.get_player(player_name).civ) == god:
+                    found_player = True
+
+
+        if found_player:
+            found_opponent = False 
+            for team in rec.teams:
+                if team.is_observing_team() or team.has_player(player_name):
+                    continue
+                # Check opposing player
+                if opposing_player_name=="*" or team.has_player(opposing_player_name):
+                    for player in team.players:
+                        # Check opposing god
+                        if opposing_god == "*" or rec.civ_mgr.get_god(player.civ) == opposing_god:
+                            found_opponent = True
+                        
+
+            if found_opponent:
+                ret_recs.append(rec)
+    return ret_recs
+
+def filter_by_1v1s(recs):
+    ret_recs =[]
+    for rec in recs:
+        team_count = 0
+        bad_player_count = False
+        for team in rec.teams:
+            if not team.is_observing_team():
+                team_count += 1
+                if len(team.players) != 1:
+                    bad_player_count = True
+        if team_count == 2 and not bad_player_count:
+            ret_recs.append(rec) 
+    return ret_recs
+
+def filter_by_map(recs, map="*"):
+    ret_recs =[]
+    for rec in recs:
+        if map=="*" or map == rec.map:
+            ret_recs.append(rec)
+    return ret_recs
+
+def write_headers(recs, file=None):
+    if file is not None:
+        with open(file, "w") as f:
+            for rec in recs:
+                f.write(rec.get_display_string())
+    else:
+        for rec in recs:
+            print(rec.get_display_string(),end="")
 
 def main():
     parser = argparse.ArgumentParser()
@@ -1425,11 +1496,16 @@ def main():
         rec.print_winner()
         print("Game time " + rec.game_time_formatted())
     else:
-        parse_many_recs("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/")
+        # parse_many_recs("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/")
+        recs = parse_all_headers("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/")
+        recs = filter_by_1v1s(recs)
+        recs = filter_by_player(recs,"BuyMerge", god="Loki", opposing_god="*")
+        recs = filter_by_map(recs, "*")
+        write_headers(recs, "recs.txt")
 
 
     # # rec = Rec("3_ppl_1v1_obs_is_titled_as_player_in_program.rcx")
-    # # rec = Rec()    
+    # # rec = Rec()
     # rec = Rec("rcxs/nube1978_cheat_obs.rcx", is_ee=False)
     # # rec = Rec(AOM_PATH+os.sep+"savegame"+os.sep+"BuyMerge_vs_White.rcx")
     # analyze_group("/mnt/c/Users/stnevans/Downloads/megardm", is_ee=False)
