@@ -1,6 +1,5 @@
 
 import struct
-from termios import OPOST
 import zlib
 import xml.etree.ElementTree as ET
 import ntpath
@@ -1220,6 +1219,8 @@ class Rec:
         else:
             print("Game not finished")
 
+    def __repr__(self):
+        return self.get_display_string()
 
     def get_display_string(self):
         teams = [[] for i in range(len(self.players))]
@@ -1326,6 +1327,14 @@ class Rec:
             if team.is_lost():
                 losingTeams.append(team)
         return losingTeams
+    
+    def clear_data(self):
+        self.reader.decomp = b""
+    
+    def recreate_data(self):
+        seek = self.reader.seek
+        self.reader = RcxReader(self.filepath)
+        self.reader.seek = seek
             
 def analyze_group(folderpath, is_ee=True):
     errors = {}
@@ -1414,14 +1423,19 @@ def analyze_group(folderpath, is_ee=True):
 
 def parse_all_headers(base):
     recs = []
+    import traceback
     for file in os.listdir(base):
         if file.endswith(".rcx"):
             try:
                 rec = Rec(base + file)
                 rec.parse_header()
                 recs.append(rec)
-            except:
-                pass
+                rec.clear_data()
+                # f.write(file + " worked\n")
+            except Exception as e:
+                print(file + "  " + str(e))
+                # f.write(file + " " + str(e))
+                # f.write(traceback.format_exc())
     return recs
 
 def filter_by_player(recs, player_name, god="*", opposing_player_name="*", opposing_god="*"):
@@ -1468,7 +1482,7 @@ def filter_by_1v1s(recs):
     return ret_recs
 
 def filter_by_map(recs, map="*"):
-    ret_recs =[]
+    ret_recs = []
     for rec in recs:
         if map=="*" or map == rec.map:
             ret_recs.append(rec)
@@ -1497,12 +1511,14 @@ def main():
         print("Game time " + rec.game_time_formatted())
     else:
         # parse_many_recs("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/")
-        recs = parse_all_headers("/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/")
+        savegame_path = "/mnt/c/Program Files (x86)/Steam/steamapps/common/Age of Mythology/savegame/"
+        if not os.path.exists(savegame_path):
+            savegame_path = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Age of Mythology\\savegame\\"
+        recs = parse_all_headers(savegame_path)
         recs = filter_by_1v1s(recs)
-        recs = filter_by_player(recs,"BuyMerge", god="Loki", opposing_god="*")
+        recs = filter_by_player(recs,"Kido", god="Set", opposing_god="*")
         recs = filter_by_map(recs, "*")
         write_headers(recs, "recs.txt")
-
 
     # # rec = Rec("3_ppl_1v1_obs_is_titled_as_player_in_program.rcx")
     # # rec = Rec()
